@@ -1,0 +1,44 @@
+name: Build Chromatic Tide Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package the game for LÖVE 11.5
+        run: |
+          cd source
+          zip -9 -q ../game.love conf.lua main.lua engine.lua render.lua palettes.lua pixel.lua
+          cd ..
+          unzip -t game.love
+      - name: Build Android APK with LÖVE 11.5a
+        uses: love-actions/love-actions-android@v2
+        with:
+          app-name: "Chromatic Tide"
+          bundle-id: "com.chromatictide.game"
+          resource-path: "./android-res"
+          icon-specifier: "@drawable/ct_icon"
+          love-ref: "11.5a"
+          love-package: "./game.love"
+          product-name: "ChromaticTide"
+          version-string: "0.6.0"
+          version-code: 60
+          output-folder: "./dist"
+      - name: Inspect generated APKs
+        run: |
+          find dist -type f -name '*.apk' -print
+          test -n "$(find dist -type f -name '*.apk' -print -quit)"
+      - name: Upload installable Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChromaticTide-Android-APK
+          path: dist/**/*.apk
+          if-no-files-found: error
