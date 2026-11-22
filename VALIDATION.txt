@@ -1,17 +1,15 @@
-Chromatic Tide handheld portability test / 2026-11-21
+LUMINE ATTACK 0.7.3 -- SOURCE TEST STATUS
 
-PASS: all six Lua runtime source files parse under Lua 5.4.
-PASS: 32 long simulated gameplay runs (4 modes x 4 colour counts x passive/active).
-PASS: passive rising rows awarded 0 score.
-PASS: four mode-specific player-authorised clears.
-PASS: horizontal beam triggering a vertical beam, clearing the column.
-PASS: individual microcell row entering, cursor rotation and single-row top-out.
-PASS: all 14 palettes at 2..10 colours pass a minimum pairwise RGB-separation test.
-PASS: headless mocked LÖVE rendering/menu/settings/audio callbacks.
-PASS: PortMaster JSON, shell syntax, PNG dimensions, ZIP CRC.
+PASS: All four game modes under 2 to 10 colours, with passive rows blocked from scoring.
+PASS: Rotation / swapping and simulation update stress checks.
+PASS: CPU VS simulation and regular garbage drop scheduling.
+PASS: H/V beam clears, mandatory self-garbage, surge raises one row, offensive garbage powerups.
+PASS: Clearing one adjacent square removes an entire connected garbage mass.
+PASS: Garbage and special markers rotate together with ordinary coloured cells.
+PASS: Eight independent preset slots with separate solo and VS score tables for every mode.
+PASS: Mock LÖVE runtime and UI drawing, including Android touch entry and options.
+PASS: LÖVE conf.lua correctly named and build workflow packages records.lua / versus.lua.
 
-NOT TESTED: PortMaster runtime launch on a real aarch64 handheld,
-actual OpenGL ES graphics or audio, Linux gamepad mapping on a real device,
-Android APK compilation and live Android touch tests.
+USB KEYBOARD: Physical key events, selectable movement layout and auto repeat are wired.
 
-EXPERIMENTAL PORT: This is a portable Lua implementation, not a direct copy of the Java/Processing P2D renderer. Preserve the v0.5.1 Processing baseline.
+NOT VERIFIED: actual runtime GPU/audio performance on Android device, physical OTG USB gamepad mapping, Android APK installation.

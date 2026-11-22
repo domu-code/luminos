@@ -1,10 +1,10 @@
 local P = {}
-P.names = {'NEON PRISM','SYNTHWAVE','DEEP OCEAN','DUSK GARDEN','CHROME NOIR','SUNSET CIRCUIT','ACID ARCADE','ROSE QUARTZ','SOLARIS','FOREST SIGNAL','POLAR AURORA','EMBER + ICE','RETRO TERMINAL','CANDY NEBULA'}
+P.names = {'NEON PRISM','SYNTHWAVE','DEEP OCEAN','DUSK GARDEN','CHROME NOIR','SUNSET CIRCUIT','ACID ARCADE','ROSE QUARTZ','SOLARIS','FOREST SIGNAL','POLAR AURORA','EMBER + ICE','RETRO TERMINAL','CANDY NEBULA','VAPOR TWILIGHT','TROPICAL CRT','BAUHAUS','AUTUMN FOG','CYBER ICE','ARCADE 1985','DARK MATTER','MICRO POP','CRYSTAL CAVE','GOLD CIRCUIT'}
 -- Palette identity is distinct from its display colour. Hue offsets affect all equally,
 -- and alternate lightness/saturation within each scheme to distinguish 10 identities.
-local bases = {180,320,194,103,210,22,95,350,39,145,166,21,126,302}
-local sat = {.89,.82,.73,.73,.76,.85,.98,.76,.81,.76,.79,.88,.84,.81}
-local light = {.61,.63,.65,.72,.73,.62,.60,.74,.62,.64,.69,.63,.65,.73}
+local bases = {180,320,194,103,210,22,95,350,39,145,166,21,126,302,270,156,25,60,212,350,245,75,179,38}
+local sat = {.89,.82,.73,.73,.76,.85,.98,.76,.81,.76,.79,.88,.84,.81,.75,.83,.85,.55,.82,.93,.69,.9,.77,.76}
+local light = {.61,.63,.65,.72,.73,.62,.60,.74,.62,.64,.69,.63,.65,.73,.66,.62,.62,.75,.69,.63,.48,.69,.62,.59}
 local function clamp(a,b,c) return math.max(b,math.min(c,a)) end
 local function hue2rgb(p,q,t)
   if t < 0 then t=t+1 end
@@ -45,7 +45,7 @@ local function buildOrder(n)
   hueOrders[n]=order
   return order
 end
-function P.get(index,palette,count,time,drift)
+function P.get(index,palette,count,time,drift,options)
   local p=clamp(palette or 1,1,#P.names)
   local countN=math.max(2,math.min(10,count or 4))
   local rank=buildOrder(countN)[(index-1)%countN+1]
@@ -55,6 +55,10 @@ function P.get(index,palette,count,time,drift)
   if p==5 then luminosity=.66+((index%4)-1.5)*.10 end
   if p==8 then luminosity=.67+((index%4)-1.5)*.075 end
   if drift then hue=hue+(time or 0)*7+math.sin((time or 0)*.41)*8 end
-  return P.hsl(hue,saturation,clamp(luminosity,.42,.86))
+  options=options or {}
+  hue=hue+(options.paletteHue or 0)
+  saturation=clamp(saturation*(options.paletteSaturation or 1),0,1)
+  luminosity=clamp(luminosity*(options.paletteBrightness or 1),.06,.95)
+  return P.hsl(hue,saturation,luminosity)
 end
 return P

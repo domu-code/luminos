@@ -1,7 +1,7 @@
 function love.conf(t)
   t.identity = 'chromatic_tide'
   t.version = '11.5'
-  t.window.title = 'CHROMATIC TIDE | Handheld Edition'
+  t.window.title = 'LUMINE ATTACK | Handheld Edition'
   t.window.width = 960
   t.window.height = 640
   t.window.resizable = true

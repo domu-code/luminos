@@ -1,4 +1,4 @@
-name: Build Chromatic Tide Android APK
+name: Build Lumine Attack Android APK
 
 on:
   workflow_dispatch:
@@ -16,21 +16,21 @@ jobs:
       - name: Package the game for LÖVE 11.5
         run: |
           cd source
-          zip -9 -q ../game.love conf.lua main.lua engine.lua render.lua palettes.lua pixel.lua
+          zip -9 -q ../game.love conf.lua main.lua engine.lua render.lua palettes.lua pixel.lua records.lua versus.lua
           cd ..
           unzip -t game.love
       - name: Build Android APK with LÖVE 11.5a
         uses: love-actions/love-actions-android@v2
         with:
-          app-name: "Chromatic Tide"
+          app-name: "Lumine Attack"
           bundle-id: "com.chromatictide.game"
           resource-path: "./android-res"
           icon-specifier: "@drawable/ct_icon"
           love-ref: "11.5a"
           love-package: "./game.love"
-          product-name: "ChromaticTide"
-          version-string: "0.6.0"
-          version-code: 60
+          product-name: "LumineAttack"
+          version-string: "0.7.3"
+          version-code: 73
           output-folder: "./dist"
       - name: Inspect generated APKs
         run: |
@@ -39,6 +39,6 @@ jobs:
       - name: Upload installable Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ChromaticTide-Android-APK
+          name: LumineAttack-Android-APK
           path: dist/**/*.apk
           if-no-files-found: error
