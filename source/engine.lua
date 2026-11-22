@@ -35,7 +35,15 @@ local default={mode=1,cols=10,rows=20,colours=5,startRows=6,minGroup=3,
   shineScorePower=1,linkScorePower=1,attackScorePower=1,bridgeScorePower=1,
   renderStyle=1,paletteSaturation=1,paletteBrightness=1,paletteHue=0,
   bloomIntensity=1,flashPower=1,trailPower=1,backgroundDetail=2,
-  screenContrast=1,paletteCycleSecs=0}
+  screenContrast=1,paletteCycleSecs=0,
+  holdSlots=1,nextPreview=4,wallKicks=true,tSpins=true,infiniteSpin=false,
+  lockDelay=.50,lockResetLimit=15,spinBonus=450,dropBonus=2,
+  fallingGravity=.80,fallingClearDelay=.16,fallingMinGroup=4,
+  fallingSweepSecs=8.0,tetrisClearDelay=.18,fallingScorePower=1.0,
+  crashGemRate=.20,slideShape=3,slideMinGroup=3,slideDiagonal=false,
+  labPieceShape=2,labClearRule=3,customBase=5,selectedMode=1,
+  zoneEnabled=true,zoneDuration=9,zoneThreshold=.5,zoneChargeRate=.12,
+  zoneStartCharge=0,zoneGravityScale=.6,fallingSpecials=true}
 function Engine.defaults() local o={};for k,v in pairs(default) do o[k]=v end;return o end
 function Engine.new(cfg)
   local b=setmetatable({},Engine);b.cfg=cfg or Engine.defaults();b:reset();return b

@@ -1,4 +1,6 @@
 local Engine=require('engine')
+local Falling=require('falling')
+local Modes=require('modes')
 local Renderer=require('render')
 local Font=require('pixel')
 local P=require('palettes')
@@ -35,7 +37,9 @@ local function loadSettings()
       end
     end
   end
-  cfg.mode=clamp(cfg.mode,1,4)
+  cfg.mode=clamp(math.floor(cfg.mode),1,Modes.count-1)
+  cfg.selectedMode=clamp(math.floor(cfg.selectedMode or cfg.mode),1,Modes.count)
+  cfg.customBase=clamp(math.floor(cfg.customBase or 5),1,Modes.count-1)
   cfg.colours=clamp(cfg.colours,2,10)
   cfg.cols=clamp(math.floor(cfg.cols/2)*2,8,18)
   cfg.palette=clamp(cfg.palette,1,#P.names)
@@ -67,12 +71,20 @@ local function loadSettings()
   cfg.garbageMediumCount=clamp(cfg.garbageMediumCount,2,12)
   cfg.garbageLargeCount=clamp(cfg.garbageLargeCount,4,24)
   cfg.garbageChainMultiplier=clamp(cfg.garbageChainMultiplier,0,3)
+  cfg.holdSlots=clamp(math.floor(cfg.holdSlots or 1),0,3)
+  cfg.nextPreview=clamp(math.floor(cfg.nextPreview or 4),0,5)
+  cfg.lockDelay=clamp(cfg.lockDelay or .5,.08,3)
+  cfg.lockResetLimit=clamp(math.floor(cfg.lockResetLimit or 15),0,99)
+  cfg.labPieceShape=clamp(math.floor(cfg.labPieceShape or 2),1,3)
+  cfg.labClearRule=clamp(math.floor(cfg.labClearRule or 3),1,6)
+  cfg.slideShape=clamp(math.floor(cfg.slideShape or 3),1,3)
+  cfg.zoneDuration=clamp(cfg.zoneDuration or 9,1,30)
   return cfg
 end
 local function row(label,key,kind,mn,mx,step,values)
   return {label=label,key=key,kind=kind,min=mn,max=mx,step=step,values=values}
 end
-ui.pageNames={'FIELD','MATCH','POWERS','SURGE+GARBAGE','CURSES','GRAPHICS','PALETTE','SOUND','CONTROLS','BOOST','VERSUS','PRESETS','EXTRAS','SHINE RULES','LINK RULES','ATTACK RULES','BRIDGE RULES'}
+ui.pageNames={'FIELD','MATCH','POWERS','SURGE+GARBAGE','CURSES','GRAPHICS','PALETTE','SOUND','CONTROLS','BOOST','VERSUS','PRESETS','EXTRAS','SHINE RULES','LINK RULES','ATTACK RULES','BRIDGE RULES','TETRIS PIECES','ZONE + SWEEP','FALLING + LAB','CUSTOM DESIGN'}
 ui.pages={
   {row('WELL WIDTH','cols','int',8,18,2),row('CELL COLOURS','colours','int',2,10,1),
    row('START ROWS','startRows','int',2,12,2),row('RISE SECONDS','riseSecs','float',3,35,1),
@@ -141,9 +153,10 @@ ui.pages={
    row('CPU SPEED','cpuSpeed','float',.4,2,.1),row('GARBAGE POWER','garbagePower','float',0,3,.25),
    row('GARBAGE DELAY','garbageDelay','float',.3,5,.2),
    row('BREAK GARBAGE','garbageBreak','bool')},
-  {row('PRESET SLOT','presetSlot','slot',1,8,1),row('SAVE PRESET','savePreset','command'),
-   row('LOAD PRESET','loadPreset','command'),row('HIGH SCORES','scores','command'),
-   row('SCORE MODE','scoreMode','mode',1,4,1),row('SCORE CATEGORY','scoreVS','scoreType'),
+  {row('PRESET SLOT','presetSlot','slot',1,16,1),row('SAVE PRESET','savePreset','command'),
+   row('LOAD PRESET','loadPreset','command'),row('RENAME PRESET','renamePreset','command'),
+   row('HIGH SCORES','scores','command'),row('SCORE SOURCE','scoreSource','scoreSource'),
+   row('SCORE MODE','scoreMode','mode',1,Modes.count,1),row('SCORE CATEGORY','scoreVS','scoreType'),
    row('ACTIVE PRESET','activeSlot','locked')},
   {row('LIGHT PULSE','visualPulse','float',0,2,.1),
    row('COMBO AUDIO','comboVolume','float',0,2,.1),
@@ -172,7 +185,47 @@ ui.pages={
    row('BRIDGE ROW SPEED','bridgeRiseSecs','float',3,40,1),
    row('BRIDGE SWEEP SPEED','bridgeSweepSecs','float',2,25,.5),
    row('BRIDGE GRAVITY STEP','bridgeGravitySecs','float',.035,.5,.025),
-   row('BRIDGE SCORE SCALE','bridgeScorePower','float',.25,5,.25)}
+   row('BRIDGE SCORE SCALE','bridgeScorePower','float',.25,5,.25)},
+  {row('HOLD SLOTS','holdSlots','int',0,3,1),
+   row('LOOK AHEAD','nextPreview','int',0,5,1),
+   row('SRS WALL KICKS','wallKicks','bool'),
+   row('RECOGNISE T-SPINS','tSpins','bool'),
+   row('INFINITE SPIN RESET','infiniteSpin','bool'),
+   row('LOCK DELAY','lockDelay','float',.08,3,.05),
+   row('LOCK RESET LIMIT','lockResetLimit','int',0,99,1),
+   row('TETRIS CLEAR DELAY','tetrisClearDelay','float',0,8,.1),
+   row('FALL GRAVITY SECS','fallingGravity','float',.06,3,.05),
+   row('T-SPIN BONUS','spinBonus','int',0,2500,50),
+   row('DROP BONUS','dropBonus','int',0,20,1)},
+  {row('ENABLE ZONE','zoneEnabled','bool'),
+   row('ZONE DURATION','zoneDuration','float',1,30,1),
+   row('ZONE TRIGGER LEVEL','zoneThreshold','float',.1,1,.1),
+   row('ZONE CHARGE RATE','zoneChargeRate','float',.02,1,.02),
+   row('INITIAL ZONE CHARGE','zoneStartCharge','float',0,1,.1),
+   row('ZONE GRAVITY SCALE','zoneGravityScale','float',.15,2,.05),
+   row('TETRIS SWEEP SECS','fallingSweepSecs','float',2,25,.5),
+   row('FALL SCORE SCALE','fallingScorePower','float',.25,5,.25)},
+  {row('PUYO MINIMUM','fallingMinGroup','int',3,8,1),
+   row('FALL MATCH DELAY','fallingClearDelay','float',0,5,.1),
+   row('CRASH GEM RATE','crashGemRate','pct',0,.9,.05),
+   row('SLIDE PIECE','slideShape','pieceShape',1,3,1),
+   row('SLIDE MINIMUM','slideMinGroup','int',2,9,1),
+   row('SLIDE DIAGONALS','slideDiagonal','bool'),
+   row('FALL SPECIAL BLOCKS','fallingSpecials','bool'),
+   row('LAB PIECE SHAPE','labPieceShape','pieceShape',1,3,1),
+   row('LAB CLEAR RULE','labClearRule','clearRule',1,6,1)},
+  {row('CUSTOM BASE GAME','customBase','baseMode',1,11,1),
+   row('PIECE SHAPES','labPieceShape','pieceShape',1,3,1),
+   row('MATCH SYSTEM','labClearRule','clearRule',1,6,1),
+   row('WELL WIDTH','cols','int',8,18,2),
+   row('COLOUR COUNT','colours','int',2,10,1),
+   row('GRAVITY ENABLED','gravity','bool'),
+   row('ZONE ENABLED','zoneEnabled','bool'),
+   row('SPECIAL BLOCKS','fallingSpecials','bool'),
+   row('CUSTOM PRESET SLOT','presetSlot','slot',1,16,1),
+   row('SAVE USER RULESET','savePreset','command'),
+   row('LOAD USER RULESET','loadPreset','command'),
+   row('RENAME USER RULESET','renamePreset','command')}
 }
 function ui.optionText(r,cfg)
   if r.kind=='locked' then
@@ -182,10 +235,14 @@ function ui.optionText(r,cfg)
   if r.kind=='bool' then return v and 'ON' or 'OFF' end
   if r.kind=='touch' then return v==1 and 'DPAD + BUTTONS' or 'RELATIVE TOUCH' end
   if r.kind=='style' then return ({'NEON','8-BIT','4-BIT','1-BIT'})[v] end
+  if r.kind=='baseMode' then return Modes.name(v) end
+  if r.kind=='pieceShape' then return ({'TETROMINO','PAIR','TRIAD'})[v] end
+  if r.kind=='clearRule' then return ({'LINE','SWEEP','PUYO','CRASH GEM','ANIMAL + FOOD','COLOUR CLUSTER'})[v] end
   if r.kind=='mouse' then return ({'OFF','DIRECT','RELATIVE'})[v+1] end
   if r.kind=='keyboard' then return ({'WASD + ARROWS','ARROWS ONLY','IJKL + ARROWS'})[v] end
-  if r.kind=='slot' then return tostring(ui.presetSlot)..(ui.records.slots[ui.presetSlot] and ' SAVED' or ' EMPTY') end
-  if r.kind=='mode' then return ({'SHINE','LINK','ATTACK','BRIDGE'})[ui.scoreMode] end
+  if r.kind=='slot' then local s=ui.records.slots[ui.presetSlot];return tostring(ui.presetSlot)..(s and ' '..s.name or ' EMPTY') end
+  if r.kind=='scoreSource' then return ui.scoreSlot==0 and 'FACTORY SCORES' or 'USER SLOT '..ui.scoreSlot end
+  if r.kind=='mode' then return Modes.name(ui.scoreMode) end
   if r.kind=='scoreType' then return ui.scoreVS and 'VS CPU' or 'SOLO' end
   if r.kind=='command' then return '[ ACTIVATE ]' end
   if r.kind=='palette' then return P.names[v] end
@@ -197,9 +254,10 @@ local function changeOption(delta)
   local r=ui.pages[ui.page][ui.selected]
   if not r or r.kind=='locked' then return end
   if r.kind=='command' then return end
-  if r.kind=='slot' then ui.presetSlot=clamp(ui.presetSlot+delta,1,8);return end
-  if r.kind=='mode' then ui.scoreMode=clamp(ui.scoreMode+delta,1,4);return end
+  if r.kind=='slot' then ui.presetSlot=clamp(ui.presetSlot+delta,1,16);if ui.scoreSlot>0 then ui.scoreSlot=ui.presetSlot end;return end
+  if r.kind=='mode' then ui.scoreMode=clamp(ui.scoreMode+delta,1,Modes.count);return end
   if r.kind=='scoreType' then ui.scoreVS=not ui.scoreVS;return end
+  if r.kind=='scoreSource' then ui.scoreSlot=ui.scoreSlot==0 and ui.presetSlot or 0;return end
   ui.activeSlot=0
   if r.kind=='bool' then ui.cfg[r.key]=not ui.cfg[r.key]
   else
@@ -216,15 +274,18 @@ local function changePage(dir)
   ui.selected=1;sound.play('rotate')
 end
 local function resetBoard()
-  ui.board=Engine.new(ui.cfg)
+  ui.board=(ui.cfg.mode>=5 and Falling or Engine).new(ui.cfg)
   ui.board.cfg=ui.cfg
   ui.vs=ui.cfg.vsCPU and Versus.new(ui.cfg) or nil
   ui.scoreSaved=false
   ui.renderer.quality=ui.cfg.adaptive and 2 or 3
   ui.renderer:resizeBlur()
 end
-local function start(mode)
-  ui.cfg.mode=mode;ui.mode=mode;ui.state='play';ui.paused=false
+local function start(mode,fromPreset)
+  if not fromPreset then ui.activeSlot=0 end
+  ui.cfg.selectedMode=mode
+  ui.cfg.mode=mode==Modes.count and ui.cfg.customBase or mode
+  ui.mode=mode;ui.runMode=mode;ui.state='play';ui.paused=false
   ui.runSlot=ui.activeSlot
   ui.runVS=ui.cfg.vsCPU
   resetBoard();saveSettings();sound.play('start')
@@ -233,7 +294,7 @@ local function saveScore()
   if ui.scoreSaved or not ui.board then return end
   ui.scoreSaved=true
   if ui.records then
-    ui.records:record(ui.runSlot or 0,ui.cfg.mode,ui.runVS or false,
+    ui.records:record(ui.runSlot or 0,ui.runMode or ui.cfg.selectedMode or ui.cfg.mode,ui.runVS or false,
       ui.board.score,ui.board.bestChain,ui.board.cleared,
       ui.vs and ui.vs.winner=='PLAYER' or false)
   end
@@ -242,19 +303,30 @@ local function actionPreset()
   local r=ui.pages[ui.page][ui.selected]
   if r.key=='savePreset' then
     ui.records:store(ui.presetSlot,ui.cfg)
-    ui.activeSlot=ui.presetSlot;ui.toast='SLOT '..ui.presetSlot..' SAVED'
+    ui.activeSlot=ui.presetSlot;ui.scoreSlot=ui.presetSlot;ui.toast='SLOT '..ui.presetSlot..' SAVED'
     saveSettings()
   elseif r.key=='loadPreset' then
     local loaded=ui.records:load(ui.presetSlot,Engine.defaults())
     if loaded then ui.cfg=loaded;setKeyboardRepeat(ui.cfg.keyboardRepeat);ui.activeSlot=ui.presetSlot
+      ui.mode=loaded.selectedMode or loaded.mode;ui.scoreMode=ui.mode;ui.scoreSlot=ui.presetSlot
       ui.toast='SLOT '..ui.presetSlot..' LOADED'
       saveSettings()
     else ui.toast='SLOT IS EMPTY' end
+  elseif r.key=='renamePreset' then
+    if ui.records.slots[ui.presetSlot] then
+      ui.renameBuffer=ui.records.slots[ui.presetSlot].name
+      ui.state='rename'
+      if love.keyboard and love.keyboard.setTextInput then love.keyboard.setTextInput(true) end
+    else ui.toast='SAVE THE SLOT FIRST' end
   elseif r.key=='scores' then
     ui.state='scores'
   end
 end
 local function options()
+  if ui.state=='mode' then
+    ui.cfg.selectedMode=ui.mode
+    if ui.mode==Modes.count then ui.cfg.mode=ui.cfg.customBase else ui.cfg.mode=ui.mode end
+  end
   ui.prevState=ui.state;ui.state='options';ui.page=1;ui.selected=1
 end
 local function leaveOptions(apply)
@@ -291,10 +363,28 @@ end
 local function dispatch(action)
   local state=ui.state
   if state=='mode' then
-    if action=='versus' then ui.cfg.vsCPU=not ui.cfg.vsCPU;ui.activeSlot=0;saveSettings();sound.play('rotate')
-    elseif action=='up' or action=='left' then ui.mode=(ui.mode+2)%4+1;sound.play('rotate')
-    elseif action=='down' or action=='right' then ui.mode=ui.mode%4+1;sound.play('rotate')
-    elseif action=='a' or action=='cw' or action=='start' then start(ui.mode)
+    if action=='versus' then ui.cfg.vsCPU=not ui.cfg.vsCPU;saveSettings();sound.play('rotate')
+    elseif action=='modeTab' or action=='prevPage' or action=='nextPage' then
+      ui.modeTab=3-ui.modeTab;sound.play('rotate')
+    elseif action=='up' or action=='left' then
+      if ui.modeTab==2 then ui.presetSlot=(ui.presetSlot+14)%16+1
+      else ui.mode=(ui.mode+Modes.count-2)%Modes.count+1 end
+      sound.play('rotate')
+    elseif action=='down' or action=='right' then
+      if ui.modeTab==2 then ui.presetSlot=ui.presetSlot%16+1
+      else ui.mode=ui.mode%Modes.count+1 end
+      sound.play('rotate')
+    elseif action=='a' or action=='cw' or action=='start' then
+      if ui.modeTab==2 then
+        local loaded=ui.records:load(ui.presetSlot,Engine.defaults())
+        if loaded then
+          local menuVS=ui.cfg.vsCPU
+          ui.cfg=loaded;ui.cfg.vsCPU=menuVS
+          ui.activeSlot=ui.presetSlot;ui.mode=loaded.selectedMode or loaded.mode
+          setKeyboardRepeat(ui.cfg.keyboardRepeat)
+          start(ui.mode,true)
+        else ui.toast='EMPTY PRESET. SAVE FROM OPTIONS';sound.play('rotate') end
+      else start(ui.mode,false) end
     elseif action=='options' or action=='y' then options()
     end
   elseif state=='options' then
@@ -309,9 +399,18 @@ local function dispatch(action)
       if r and r.kind=='command' then actionPreset() else leaveOptions(true) end
     elseif action=='b' or action=='back' then leaveOptions(false)
     end
+  elseif state=='rename' then
+    if action=='a' or action=='start' then
+      ui.records:rename(ui.presetSlot,ui.renameBuffer)
+      ui.state='options';ui.toast='PRESET RENAMED'
+      if love.keyboard and love.keyboard.setTextInput then love.keyboard.setTextInput(false) end
+    elseif action=='b' or action=='back' then
+      ui.state='options'
+      if love.keyboard and love.keyboard.setTextInput then love.keyboard.setTextInput(false) end
+    end
   elseif state=='scores' then
-    if action=='left' then ui.scoreMode=(ui.scoreMode+2)%4+1
-    elseif action=='right' then ui.scoreMode=ui.scoreMode%4+1
+    if action=='left' then ui.scoreMode=(ui.scoreMode+Modes.count-2)%Modes.count+1
+    elseif action=='right' then ui.scoreMode=ui.scoreMode%Modes.count+1
     elseif action=='up' or action=='down' then ui.scoreVS=not ui.scoreVS
     elseif action=='b' or action=='back' or action=='a' or action=='start' then ui.state='options' end
   elseif state=='help' then
@@ -323,12 +422,19 @@ local function dispatch(action)
       ui.state='play'
     elseif action=='b' or action=='back' then ui.state='mode' end
   elseif state=='play' then
-    if action=='up' then ui.board:move(0,-1)
+    if action=='up' then if ui.board.isFalling then ui.board:rotate(true) else ui.board:move(0,-1) end
     elseif action=='down' then ui.board:move(0,1)
     elseif action=='left' then ui.board:move(-1,0)
     elseif action=='right' then ui.board:move(1,0)
     elseif action=='a' or action=='cw' then ui.board:act(true)
     elseif action=='b' or action=='ccw' then ui.board:act(false)
+    elseif action=='hardDrop' and ui.board.isFalling then ui.board:hardDrop()
+    elseif action=='hold' and ui.board.isFalling then ui.board:hold()
+    elseif action=='selectHold' and ui.board.isFalling then ui.board:selectHold()
+    elseif action=='zone' and ui.board.isFalling then ui.board:activateZone()
+    elseif action=='cycleColours' and ui.board.isFalling then ui.board:cycleColours()
+    elseif action=='slideLeft' and ui.board.isFalling then ui.board:slide(-1)
+    elseif action=='slideRight' and ui.board.isFalling then ui.board:slide(1)
     elseif action=='y' or action=='start' then ui.state='pause'
     elseif action=='options' then options()
     elseif action=='mode' or action=='back' then ui.state='mode'
@@ -344,7 +450,7 @@ local keyAction={
   x='a',e='a',z='b',q='b',
   ['return']='start',kpenter='start',escape='back',
   o='options',b='mode',h='help',['?']='help',
-  c='palette',p='y',tab='nextPage',['[']='prevPage',[']']='nextPage',
+  c='palette',p='y',t='modeTab',tab='nextPage',['[']='prevPage',[']']='nextPage',
   pageup='prevPage',pagedown='nextPage',
 }
 function love.load()
@@ -353,9 +459,9 @@ function love.load()
   ui.cfg=loadSettings()
   setKeyboardRepeat(ui.cfg.keyboardRepeat)
   ui.records=Records.new(Engine.defaults())
-  ui.presetSlot=1;ui.scoreMode=ui.cfg.mode;ui.scoreVS=false
+  ui.presetSlot=1;ui.scoreMode=ui.cfg.selectedMode;ui.scoreSlot=0;ui.scoreVS=false
   ui.activeSlot=0;ui.toast=''
-  ui.state='mode';ui.mode=ui.cfg.mode;ui.page=1;ui.selected=1
+  ui.state='mode';ui.mode=ui.cfg.selectedMode;ui.modeTab=1;ui.page=1;ui.selected=1
   ui.renderer=Renderer.new()
   ui.touch=love.system.getOS()=='Android' or love.system.getOS()=='iOS'
   ui.boost=false;ui.touchFingers={};ui.keyBoost=false;ui.padBoost=false
@@ -379,7 +485,7 @@ function love.update(dt)
   if ui.cfg.gamepadEnabled then
     for _,pad in ipairs(love.joystick.getJoysticks()) do
       if pad:isGamepad() then
-        if pad:isGamepadDown('x') or pad:getGamepadAxis('triggerleft')>.6 or
+        if (not ui.board.isFalling and pad:isGamepadDown('x')) or pad:getGamepadAxis('triggerleft')>.6 or
           pad:getGamepadAxis('triggerright')>.6 then ui.padBoost=true;break end
       elseif pad:getButtonCount()>=3 and pad:isDown(3) then ui.padBoost=true;break end
     end
@@ -447,6 +553,12 @@ end
 function love.draw() ui.renderer:draw(ui) end
 function love.resize(w,h) ui.renderer.blurNeedsUpdate=true end
 function love.keypressed(key)
+  if ui.state=='rename' then
+    if key=='backspace' then ui.renameBuffer=ui.renameBuffer:sub(1,-2)
+    elseif key=='return' or key=='kpenter' then dispatch('start')
+    elseif key=='escape' then dispatch('back') end
+    return
+  end
   -- Physical USB/OTG and Bluetooth keyboards use these ordinary LÖVE events.
   -- Keep menu recovery available even with keyboard gameplay disabled.
   if key=='o' and ui.state=='options' then dispatch('b');return end
@@ -455,7 +567,20 @@ function love.keypressed(key)
   if not ui.cfg.keyboardEnabled then return end
   if (ui.cfg.keyboardLayout==2 and (key=='w' or key=='a' or key=='s' or key=='d')) or
      (ui.cfg.keyboardLayout==1 and (key=='i' or key=='j' or key=='k' or key=='l')) then return end
-  if key=='space' then ui.keyBoost=true;return end
+  if key=='space' then
+    if ui.state=='play' and ui.board.isFalling then dispatch('hardDrop')
+    else ui.keyBoost=true end
+    return
+  end
+  if ui.state=='play' and ui.board.isFalling then
+    if key=='v' then dispatch('hold');return end
+    if key=='g' then dispatch('selectHold');return end
+    if key=='f' then dispatch('zone');return end
+    if key=='c' then dispatch('cycleColours');return end
+    if (key=='left' or key=='right') and love.keyboard.isDown('lshift','rshift') then
+      dispatch(key=='left' and 'slideLeft' or 'slideRight');return
+    end
+  end
   if key=='f5' then saveSettings();return end
   if key=='r' and ui.state=='play' then resetBoard();return end
   if key=='v' and ui.state=='mode' then dispatch('versus');return end
@@ -468,6 +593,11 @@ function love.keypressed(key)
     else dispatch(action) end
   end
 end
+function love.textinput(t)
+  if ui.state~='rename' then return end
+  t=string.upper(t):gsub('[^A-Z0-9 _%-]','')
+  ui.renameBuffer=(ui.renameBuffer..t):sub(1,18)
+end
 function love.keyreleased(key) if key=='space' then ui.keyBoost=false end end
 local gamepadActions={dpup='up',dpdown='down',dpleft='left',dpright='right',a='a',b='b',x='boost',y='y',start='start',back='back',leftshoulder='prevPage',rightshoulder='nextPage'}
 function love.gamepadpressed(joystick,button)
@@ -475,6 +605,11 @@ function love.gamepadpressed(joystick,button)
   if ui.state=='play' then
     if button=='leftshoulder' then dispatch('ccw');return end
     if button=='rightshoulder' then dispatch('cw');return end
+  end
+  if ui.state=='play' and ui.board and ui.board.isFalling then
+    if button=='x' then dispatch('hardDrop');return end
+    if button=='y' then dispatch('hold');return end
+    if button=='back' then dispatch('selectHold');return end
   end
   local a=gamepadActions[button]
   if a=='boost' then ui.padBoost=true
@@ -501,9 +636,16 @@ local function screenTouch(x,y)
   local rx,ry=ui.renderer:point(x,y)
   if rx<0 or rx>640 or ry<0 or ry>440 then return nil end
   if ui.state=='mode' then
-    if rx>50 and rx<590 and ry>103 and ry<355 then
-      local m=clamp(math.floor((ry-111)/61)+1,1,4)
-      ui.mode=m;dispatch('start')
+    if ry<90 then dispatch('modeTab')
+    elseif rx>50 and rx<590 and ry>=91 and ry<363 then
+      if ui.modeTab==2 then
+        local slot=(rx>=320 and 9 or 1)+math.floor((ry-91)/34)
+        if slot>=1 and slot<=16 then ui.presetSlot=slot;dispatch('start') end
+      else
+        local row=math.floor((ry-93)/43)
+        local m=(rx>=320 and 7 or 1)+row
+        if m>=1 and m<=Modes.count then ui.mode=m;dispatch('start') end
+      end
     elseif ry>=367 and ry<399 then dispatch('versus')
     elseif ry>=399 then dispatch('options') end
   elseif ui.state=='options' then
@@ -521,6 +663,8 @@ local function screenTouch(x,y)
   elseif ui.state=='play' then
     -- Gameplay touches are handled by touchStart, never as absolute board taps.
     if rx>594 and ry<40 then dispatch('y') end
+  elseif ui.state=='rename' then
+    if ry>360 then dispatch(rx<320 and 'back' or 'start') end
   elseif ui.state=='scores' then
     if ry>380 then ui.state='options' else dispatch(rx<320 and 'left' or 'right') end
   elseif ui.state=='pause' or ui.state=='gameover' then
@@ -543,6 +687,11 @@ local function touchStart(id,x,y)
   local rx,ry=ui.renderer:point(x,y)
   if rx<0 or rx>640 or ry<0 or ry>440 then return end
   if rx>=594 and ry<=40 then dispatch('y');return end
+  if ui.board.isFalling and ry>=4 and ry<=39 then
+    if rx>=144 and rx<230 then dispatch('hold');return end
+    if rx>=240 and rx<326 then dispatch('hardDrop');return end
+    if rx>=336 and rx<424 then dispatch('zone');return end
+  end
   if ui.cfg.touchMode==1 then
     for _,b in ipairs(dpad) do
       if rx>=b[1] and rx<b[1]+b[3] and ry>=b[2] and ry<b[2]+b[4] then
@@ -611,6 +760,13 @@ local function setMouseCursor(x,y)
   local bx=ui.vs and 198 or math.floor((640-ui.board.w*15)/2)
   local by=ui.vs and 68 or 45
   if rx<bx or rx>=bx+ui.board.w*tile or ry<by or ry>=by+ui.board.h*tile then return false end
+  if ui.board.isFalling then
+    if not ui.board.active then return false end
+    local target=clamp(math.floor((rx-bx)/tile)+1,1,ui.board.w)
+    local goal=clamp(target-ui.board.active.x,-ui.board.w,ui.board.w)
+    for i=1,math.abs(goal) do ui.board:move(goal>0 and 1 or -1,0) end
+    return true
+  end
   ui.board.cx=clamp(math.floor((rx-bx)/tile)+1,1,ui.board.w-1)
   ui.board.cy=clamp(math.floor((ry-by+ui.board.rise*tile)/tile)+1,1,ui.board.h-(ui.cfg.mode==3 and 0 or 1))
   return true

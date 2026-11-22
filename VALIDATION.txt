@@ -1,15 +1,10 @@
-LUMINE ATTACK 0.7.3 -- SOURCE TEST STATUS
-
-PASS: All four game modes under 2 to 10 colours, with passive rows blocked from scoring.
-PASS: Rotation / swapping and simulation update stress checks.
-PASS: CPU VS simulation and regular garbage drop scheduling.
-PASS: H/V beam clears, mandatory self-garbage, surge raises one row, offensive garbage powerups.
-PASS: Clearing one adjacent square removes an entire connected garbage mass.
-PASS: Garbage and special markers rotate together with ordinary coloured cells.
-PASS: Eight independent preset slots with separate solo and VS score tables for every mode.
-PASS: Mock LÖVE runtime and UI drawing, including Android touch entry and options.
-PASS: LÖVE conf.lua correctly named and build workflow packages records.lua / versus.lua.
-
-USB KEYBOARD: Physical key events, selectable movement layout and auto repeat are wired.
-
-NOT VERIFIED: actual runtime GPU/audio performance on Android device, physical OTG USB gamepad mapping, Android APK installation.
+LUMINE ATTACK 0.8.0 / PUZZLE GAME MAKER
+PASS: Original four modes SHINE, LINK, ATTACK, BRIDGE preserved.
+PASS: 11 factory mode names + CUSTOM, consistent name/selection maps.
+PASS: Falling engine 22,400-frame randomised simulation through 7 falling rulesets.
+PASS: CUSTOM selects any of the 11 prior game families without changing factory rules.
+PASS: 16 named preset slots; distinct factory/player scoreboards; score preservation on exact save; reset for changed rules.
+PASS: Serialized records survive reload and preserve v0.7 legacy record format.
+PASS: Mock LÖVE input, UI and renderer testing across all 12 mode selections.
+PASS: Packaged .love and PortMaster ZIP integrity checks.
+NEEDS DEVICE TEST: Android APK launch and touch keyboard / screen fit, USB gamepads, PortMaster visuals and audio, real FPS, all UI hit targets.

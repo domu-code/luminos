@@ -16,7 +16,7 @@ jobs:
       - name: Package the game for LÖVE 11.5
         run: |
           cd source
-          zip -9 -q ../game.love conf.lua main.lua engine.lua render.lua palettes.lua pixel.lua records.lua versus.lua
+          zip -9 -q ../game.love conf.lua main.lua engine.lua falling.lua modes.lua render.lua palettes.lua pixel.lua records.lua versus.lua
           cd ..
           unzip -t game.love
       - name: Build Android APK with LÖVE 11.5a
@@ -29,8 +29,8 @@ jobs:
           love-ref: "11.5a"
           love-package: "./game.love"
           product-name: "LumineAttack"
-          version-string: "0.7.3"
-          version-code: 73
+          version-string: "0.8.0"
+          version-code: 80
           output-folder: "./dist"
       - name: Inspect generated APKs
         run: |

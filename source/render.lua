@@ -1,4 +1,5 @@
 local P=require('palettes')
+local Modes=require('modes')
 local F=require('pixel')
 local R={}
 R.__index=R
@@ -169,6 +170,10 @@ function R:board(board,cfg,t,view)
           g.setColor(min(1,rr*.55+charge*.15),min(1,gg*.55+charge*.15),min(1,bb*.55+charge*.15),charged and .75 or .46)
           g.rectangle('fill',px+3,py+3,S-6,S-6)
         end
+        if board.isFalling and y>h-(board.zoneRows or 0) then
+          g.setColor(.66,.97,1,.64+.22*sin(t*9))
+          g.rectangle('line',px+.5,py+.5,S-1,S-1)
+        end
         if charged and cfg.glowPower>0 and (cfg.renderStyle or 1)==1 then
           g.setColor(rr,gg,bb,.72)
           g.rectangle('line',px-1,py-1,S+2,S+2)
@@ -181,7 +186,7 @@ function R:board(board,cfg,t,view)
           g.line(px+2,py+2,px+S-2,py+S-2)
           g.line(px+S-2,py+2,px+2,py+S-2)
         elseif fx~=0 then
-          local marker=fx<=3 and '*' or fx==4 and 'P' or fx==5 and 'R' or fx==6 and 'F' or fx==7 and '-' or fx==8 and '|' or fx==9 and '^' or fx==10 and 'g' or fx==11 and 'G' or fx==12 and '#' or '!'
+          local marker=fx<=3 and '*' or fx==4 and 'P' or fx==5 and 'R' or fx==6 and 'F' or fx==7 and '-' or fx==8 and '|' or fx==9 and '^' or fx==10 and 'g' or fx==11 and 'G' or fx==12 and '#' or fx==20 and 'C' or fx==21 and 'A' or '!'
           txt(marker,px+S/2,py+4,1,{1,1,1,.94},'center')
         elseif cfg.mode==2 and cfg.icons then
           local sym=board.icon[y][x]
@@ -206,20 +211,45 @@ function R:board(board,cfg,t,view)
       end
     end
   end
-  if cfg.mode~=3 then
+  if (not board.isFalling and cfg.mode~=3) or (board.isFalling and board:rule()==2) then
     local yy=by+board.sweep*S
     g.setColor(.23,.94,1,.14);g.rectangle('fill',bx-6,yy-9,w*S+12,18)
     g.setColor(.48,.93,1,.9);g.rectangle('fill',bx-9,yy-1,w*S+18,2)
     g.setColor(1,1,1,.8);g.rectangle('fill',bx-5,yy,w*S+10,1)
     if board.freeze>0 then txt('HOLD',bx+w*S/2,yy-11,1,{.7,1,1},'center') end
   end
-  local cursorX=bx+(board.cx-1)*S
-  local cursorY=by+(board.cy-1-board.rise)*S
-  local ch=cfg.mode==3 and S or S*2
-  g.setColor(.47,.95,1,.10);g.rectangle('fill',cursorX-2,cursorY-2,S*2+4,ch+4)
-  g.setLineWidth(2);g.setColor(.98,.98,.99,1)
-  g.rectangle('line',cursorX-2,cursorY-2,S*2+4,ch+4)
-  g.setLineWidth(1)
+  if board.isFalling then
+    local function drawPieceCell(cell,ghost)
+      local x,y,c=cell[1],cell[2],cell[3]
+      if x<1 or x>w or y<1 or y>h then return end
+      local px=bx+(x-1)*S;local py=by+(y-1)*S
+      local r,gg,b=cellRGB(cfg,c,t)
+      if ghost then
+        g.setColor(r,gg,b,.24);g.rectangle('fill',px+2,py+2,S-4,S-4)
+        g.setColor(r,gg,b,.66);g.rectangle('line',px+1.5,py+1.5,S-3,S-3)
+      else
+        g.setColor(r,gg,b,.6);g.rectangle('fill',px-1,py-1,S+2,S+2)
+        g.setColor(r*.46,gg*.46,b*.46,1);g.rectangle('fill',px+1,py+1,S-2,S-2)
+        g.setColor(r,gg,b,1);g.rectangle('fill',px+3,py+3,S-6,S-6)
+        g.setColor(1,1,1,.85);g.rectangle('line',px+1.5,py+1.5,S-3,S-3)
+        if cell[4]==20 or cell[4]==21 then txt(cell[4]==20 and 'C' or 'A',px+S/2,py+4,1,{1,1,1},'center') end
+      end
+    end
+    if cfg.ghostPiece and board.active then
+      for _,v in ipairs(board:ghostCells()) do drawPieceCell(v,true) end
+    end
+    if board.active then
+      for _,v in ipairs(board:cells(board.active)) do drawPieceCell(v,false) end
+    end
+  else
+    local cursorX=bx+(board.cx-1)*S
+    local cursorY=by+(board.cy-1-board.rise)*S
+    local ch=cfg.mode==3 and S or S*2
+    g.setColor(.47,.95,1,.10);g.rectangle('fill',cursorX-2,cursorY-2,S*2+4,ch+4)
+    g.setLineWidth(2);g.setColor(.98,.98,.99,1)
+    g.rectangle('line',cursorX-2,cursorY-2,S*2+4,ch+4)
+    g.setLineWidth(1)
+  end
   if (cfg.juicePower or 0)>0 then for _,p in ipairs(board.shocks) do
     local c=max(1,p.colour)
     local r,gg,b=cellRGB(cfg,c,t)
@@ -253,6 +283,7 @@ function R:board(board,cfg,t,view)
   return bx,by
 end
 function R:hud(board,cfg,game)
+  if board.isFalling then return self:fallingHud(board,cfg) end
   local w,h=board.w,board.h
   local bx=self.bx;local right=bx+w*15+15
   local mode={'SHINE','LINK','ATTACK','BRIDGE'}
@@ -303,6 +334,60 @@ function R:hud(board,cfg,game)
     txt(p.text,x,y,1,{p.r,p.g,p.b,min(1,p.life/.38)},'center')
   end
 end
+
+-- Compact HUD for falling games. The queue always exists, but the visible
+-- count is exactly the 0..5 setting; hidden previews confer no information.
+function R:fallingHud(board,cfg)
+  local bx=floor((LW-board.w*15)/2)
+  local rx=bx+board.w*15+15
+  txt('LUMINE',12,8,2,{.42,.9,1})
+  txt('ATTACK',12,23,2,{.96,.72,1})
+  txt(Modes.name(cfg.mode),LW-14,14,2,{1,1,1},'right')
+  txt('SCORE',12,72,2,{.4,.85,1})
+  txt(tostring(board.score),12,90,2,{1,1,1})
+  txt('LINES',12,123,1,{.56,.75,.9})
+  txt(tostring(board.lines or 0),12,136,2,{.88,1,1})
+  txt('CHAIN',12,163,1,{.58,.78,.9})
+  txt('X'..tostring(board.chain),12,177,2,{1,.9,.56})
+  txt('RISK X'..string.format('%.1f',board.riskMultiplier),12,204,1,{1,.82,.56})
+  txt('HOLD '..#board.holdSlots..'/'..(cfg.holdSlots or 0),12,237,1,{.48,.95,1})
+  for i,p in ipairs(board.holdSlots) do
+    local selected=i==board.holdSelected
+    txt((selected and '>' or ' ')..i..':'..(p.kind and ({'I','J','L','O','S','T','Z'})[p.kind] or 'COL'),12,250+(i-1)*16,1,
+      selected and {1,.98,.67} or {.57,.77,.92})
+  end
+  txt('ZONE '..math.floor((board.zoneCharge or 0)*100)..'%',rx,157,1,{.46,.91,1})
+  if board.zoneActive then
+    txt('ACTIVE '..string.format('%.1f',board.zoneTime),rx,171,1,{1,.7,1})
+  elseif board.zoneRows>0 then txt('STORED '..board.zoneRows,rx,171,1,{.87,1,.6}) end
+  txt('NEXT '..(cfg.nextPreview or 0),rx,192,1,{.5,.88,1})
+  local count=math.min(cfg.nextPreview or 0,5,#board.nextQueue)
+  for i=1,count do
+    local p=board.nextQueue[i]
+    local y=207+(i-1)*25
+    local mini=board:cells(p,0,0,0)
+    for _,b in ipairs(mini) do
+      local r,gg,bb=cellRGB(cfg,b[3],board.time)
+      g.setColor(r,gg,bb,.95)
+      g.rectangle('fill',rx+b[1]*5+1,y+b[2]*5,5,5)
+    end
+    txt(tostring(i),rx+48,y+4,1,{.55,.81,.94})
+  end
+  if board.celebration>0 then
+    txt(board.zoneRows>4 and 'MEGA ZONE' or 'CHAIN X'..board.chain,LW/2,18,2,{1,.67,.98},'center')
+  end
+  if board.flash>0 then
+    rect(bx,45,board.w*15,board.h*15,{.68,.91,1,board.flash*.22})
+  end
+  for _,p in ipairs(board.popups) do
+    local x=bx+(p.x-.5)*15;local y=45+(p.y-.5)*15
+    local width=F.width(p.text,1)
+    rect(x-width/2-4,y-3,width+8,13,{.03,.08,.13,.53})
+    txt(p.text,x,y,1,{p.r,p.g,p.b,min(1,p.life/.38)},'center')
+  end
+  txt('FPS '..love.timer.getFPS()..'  Q'..self.quality,12,345,1,{.47,.71,.84})
+end
+
 function R:drawTouch(ui)
   local cfg=ui.cfg
   local function button(x,y,w,h,label,hot)
@@ -330,27 +415,53 @@ function R:drawTouch(ui)
     txt('ROTATE CCW',581,283,1,{1,.66,.95},'center')
     button(438,367,190,57,'BOOST',ui.boost)
   end
+  if ui.board and ui.board.isFalling then
+    button(144,4,86,35,'HOLD',false)
+    button(240,4,86,35,'DROP',true)
+    button(336,4,88,35,'ZONE',ui.board.zoneActive)
+  end
   button(594,7,35,30,'II')
 end
 function R:menu(state,cfg,ui)
   rect(36,51,568,333,{.02,.06,.10,.92})
   rect(36,51,568,333,{.25,.80,.95,.55},true)
   if state=='mode' then
-    txt('SELECT GAME MODE',LW/2,65,3,{.77,.98,1},'center')
-    local names={'SHINE','LINK','ATTACK','BRIDGE'}
-    local notes={'2X2 COLOUR SQUARES','CONNECTED COLOUR GROUPS','SWAP / MATCH THREE','CONNECT THE SIDE WALLS'}
-    for k=1,4 do
-      local yy=111+(k-1)*61
-      local selected=ui.mode==k
-      rect(57,yy,526,53,selected and {.11,.29,.39,.92} or {.05,.12,.18,.9})
-      rect(57,yy,526,53,{selected and .69 or .23,selected and .99 or .55,1,selected and .85 or .28},true)
-      txt(k..'  '..names[k],71,yy+8,2,{selected and 1 or .65,selected and 1 or .84,1})
-      txt(notes[k],92,yy+30,1,{.62,.78,.86})
+    txt(ui.modeTab==2 and 'MY SAVED PUZZLE GAMES' or 'FACTORY PUZZLE GAMES',LW/2,62,2,{.77,.98,1},'center')
+    txt('TAB: FACTORY / MY PRESETS',LW/2,81,1,{.77,.92,1},'center')
+    if ui.modeTab==2 then
+      for slot=1,16 do
+        local col=slot<=8 and 0 or 1
+        local rr=col==0 and slot-1 or slot-9
+        local x=col==0 and 54 or 323
+        local yy=92+rr*34
+        local selected=ui.presetSlot==slot
+        local preset=ui.records.slots[slot]
+        local label=preset and preset.name or 'EMPTY SLOT'
+        local desc=preset and Modes.name(preset.cfg.selectedMode or preset.cfg.mode or 1) or 'SAVE FROM OPTIONS'
+        rect(x,yy,262,32,selected and {.11,.29,.39,.92} or {.05,.12,.18,.9})
+        rect(x,yy,262,32,{selected and .69 or .23,selected and .99 or .55,1,selected and .85 or .28},true)
+        txt(string.format('%02d %s',slot,label),x+7,yy+3,1,{selected and 1 or .65,selected and 1 or .84,1})
+        txt(desc,x+7,yy+17,1,{.59,.78,.87})
+      end
+    else
+      for k=1,Modes.count do
+        local col=k<=6 and 0 or 1
+        local rr=col==0 and k-1 or k-7
+        local x=col==0 and 54 or 323
+        local yy=93+rr*43
+        local selected=ui.mode==k
+        rect(x,yy,262,39,selected and {.11,.29,.39,.92} or {.05,.12,.18,.9})
+        rect(x,yy,262,39,{selected and .69 or .23,selected and .99 or .55,1,selected and .85 or .28},true)
+        txt(k..' '..Modes.names[k],x+7,yy+4,1,{selected and 1 or .65,selected and 1 or .84,1})
+        local note=Modes.notes[k]
+        if k==Modes.count then note='BASE: '..Modes.name(cfg.customBase or 5) end
+        txt(note,x+7,yy+22,1,{.59,.78,.87})
+      end
     end
     rect(57,365,526,29,{.05,.14,.22,.92})
     rect(57,365,526,29,{.31,.85,1,.54},true)
     txt('VS CPU '..(cfg.vsCPU and 'ON' or 'OFF')..'   [V TO TOGGLE]',LW/2,374,1,{cfg.vsCPU and 1 or .63,.97,1},'center')
-    txt('A START   Y OPTIONS   V VS TOGGLE',LW/2,400,1,{.71,.81,.85},'center')
+    txt('A PLAY  TAB FACTORY / PRESETS   Y OPTIONS',LW/2,400,1,{.71,.81,.85},'center')
   elseif state=='options' then
     local page=ui.page
     local title=ui.pageNames[page]
@@ -372,21 +483,30 @@ function R:menu(state,cfg,ui)
     txt('ROW '..ui.selected..'/'..#rows..'  TOP: PREV/NEXT PAGE',LW/2,374,1,{.69,.87,.94},'center')
     txt('BACK                          APPLY',LW/2,397,1,{.69,.87,.94},'center')
   elseif state=='scores' then
-    local slot=ui.presetSlot or 1
+    local slot=ui.scoreSlot or 0
     local scores=ui.records:list(slot,ui.scoreMode,ui.scoreVS)
-    local label=({'SHINE','LINK','ATTACK','BRIDGE'})[ui.scoreMode]
-    txt('HIGHSCORES / PRESET '..slot,LW/2,65,2,{.72,.98,1},'center')
+    local label=Modes.name(ui.scoreMode)
+    local record=slot>0 and ui.records.slots[slot]
+    local source=record and record.name or slot==0 and 'FACTORY MODES' or ('EMPTY SLOT '..slot)
+    txt('HIGHSCORES / '..source,LW/2,65,2,{.72,.98,1},'center')
     txt(label..'  '..(ui.scoreVS and 'VS CPU' or 'SOLO'),LW/2,93,2,{1,.82,.55},'center')
-    if #scores==0 then txt('NO RECORDED SCORES',LW/2,178,2,{.7,.85,1},'center') end
+    if #scores==0 then txt(slot==0 and ui.scoreMode==Modes.count and 'SAVE CUSTOM PRESET FIRST' or 'NO RECORDED SCORES',LW/2,178,2,{.7,.85,1},'center') end
     for i,sc in ipairs(scores) do
       local line=string.format('%02d   %08d   CHAIN %d %s',i,sc.points,sc.chain,sc.won and 'WIN' or '')
       txt(line,LW/2,118+(i-1)*24,1,{.77,.96,1},'center')
     end
     txt('LEFT RIGHT MODE  UP DOWN TYPE',LW/2,368,1,{.75,.94,1},'center')
     txt('A / B BACK TO PRESETS',LW/2,396,1,{.75,.94,1},'center')
+  elseif state=='rename' then
+    txt('NAME YOUR USER PRESET',LW/2,65,2,{.75,1,.92},'center')
+    rect(86,170,468,47,{.07,.17,.24,.9})
+    rect(86,170,468,47,{.55,.93,1,.95},true)
+    txt((ui.renameBuffer or 'CUSTOM')..'_',LW/2,185,2,{1,.97,.72},'center')
+    txt('TYPE A NAME / MAX 18 CHARACTERS',LW/2,245,1,{.8,.92,1},'center')
+    txt('BACK CANCEL                      ENTER SAVE',LW/2,390,1,{.8,.92,1},'center')
   elseif state=='help' then
     txt('HOW TO PLAY',LW/2,65,3,{.8,1,1},'center')
-    local help={'MOVE: DPAD OR ARROW KEYS','SHINE: ROTATE 2X2 / SOLID SQUARES','LINK: ROTATE 2X2 / CONNECT COLOURS','ATTACK: SWAP 2 CELLS / MATCH 3','BRIDGE: CONNECT LEFT TO RIGHT','A: CLOCKWISE OR SWAP','B: COUNTERCLOCKWISE','X: SPEED UP RISING ROWS','Y: PAUSE   START: SELECT','RARE POWERS: BOMBS / FREEZE / BEAMS / SURGE / GARBAGE','PASSIVE RISING DOES NOT SCORE','PRESS B TO RETURN'}
+    local help={'MOVE: DPAD OR ARROW KEYS','SHINE: SOLID SQUARES / SWEEP','LINK: CONNECT COLOURS / SWEEP','ATTACK: MATCH THREE / GRAVITY','BRIDGE: CONNECT BOTH SIDE WALLS','TETRIS: FALLING LINES / OPTIONAL ZONE','TETRIS SWEEP: COLLECT MANY LINES','PUYO / FIGHTER / BAKU: FALLING PAIRS','SLIDEFALL: TRIADS / CLUSTERS','MIX LAB: MIX PIECES AND CLEAR RULES','CUSTOM: SELECT BASE + EDIT / SAVE','FALLING: SPACE DROP / V HOLD / F ZONE','G SELECT HOLD / SHIFT+ARROW SLIDE','PRESS B TO RETURN'}
     for i,s in ipairs(help) do txt(s,72,109+(i-1)*21,1,{.8,.9,.99}) end
   elseif state=='pause' or state=='gameover' then
     txt(state=='pause' and 'PAUSED' or 'GAME OVER',LW/2,105,3,{1,.84,.95},'center')
@@ -450,6 +570,10 @@ function R:draw(ui)
       self:vsHud(ui)
     else self:board(board,cfg,board.time);self:hud(board,cfg,ui) end
     if ui.touch and ui.state=='play' then self:drawTouch(ui) end
+    if ui.runMode==Modes.count then
+      local stamp=ui.runSlot and ui.runSlot>0 and ui.records.slots[ui.runSlot]
+      txt(stamp and ('CUSTOM / '..stamp.name) or ('CUSTOM / '..Modes.name(cfg.customBase or 5)),LW/2,29,1,{1,.82,.58},'center')
+    end
   end
   if ui.state~='play' then self:menu(ui.state,cfg,ui) end
   g.setCanvas()

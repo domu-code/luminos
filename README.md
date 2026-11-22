@@ -1,55 +1,48 @@
-# Lumine Attack v0.7.3
+# LUMINE ATTACK v0.8.0 / PUZZLE GAME MAKER
 
-Puzzle action game for Android (APK) and LÖVE 11.5 (desktop/PortMaster handhelds). Developed from Chromatic Tide v0.6.
+A modular puzzle-action game for LÖVE 11.5 on Android, PortMaster and desktop.
 
-## Gameplay
+## Games
 
-Four selectable rulesets share a rising microcell field:
+**Factory games (11):** SHINE (sweepable 2x2 squares), LINK (orthogonal matching), ATTACK (Panel de Pon-style swap and match-three), BRIDGE (coloured path spanning the well), TETRIS (falling tetrominoes and completed lines), TETRIS SWEEP (completed rows held until the scanner passes), PUYO (falling colour pairs), PUZZLE FIGHTER (colour gems and crash gems), BAKU BAKU (animal/food), SLIDEFALL (falling and sliding triads), and MIX LAB (choose falling piece family and clear rule).
 
-- **SHINE**: rotating 2x2 cursor; monochrome 2x2 microcell squares become eligible; downwards sweep clears them.
-- **LINK**: rotating 2x2 cursor; orthogonally connected groups of the configured size clear at the sweep. Optional independent X/O/+ icon connections and linked resonance.
-- **ATTACK**: horizontal 2-cell swap cursor; 3+ straight lines clear after a configurable delay, with gravity.
-- **BRIDGE**: rotating 2x2 cursor; a connected colour component must span from the left to right wall; sweep clears the entire component.
+**CUSTOM (12th entry):** choose any of the eleven underlying game families, change gameplay settings across all option pages, and save a named game in a user preset slot. If you want to mix tetrominoes, pairs or triads with line, sweep, colour group, crash-gem or animal/food clearing, use MIX LAB as the Custom base game and configure `LAB PIECE SHAPE` and `LAB CLEAR RULE` on the FALLING + LAB page.
 
-Microcells rise **one row at a time**, are interactive as soon as they enter fully, and top-out checks every row. Rising rows never become scoring-authorised on their own. Row generation samples different 2x2 pattern types, colour pairs and candidates; it penalises checkerboard regularity.
+## Game library and presets
 
-## Touch controls (exclusive)
+- On the game-select screen, press **Tab** (or touch the heading) to switch between **Factory Games** and **My Presets**. Each of 16 user slots appears as a selectable game entry.
+- Select CUSTOM on the Factory page and use **Options** to edit it. The **CUSTOM DESIGN** page selects a starting engine; all other gameplay, timing, special-block, visual, audio and control pages remain editable.
+- Open **PRESETS** in Options, select a slot, then **SAVE PRESET**. The slot appears in My Presets. Choose **RENAME PRESET** to type an 18-character name using a physical keyboard or the Android software keyboard. **LOAD PRESET** restores its precise settings.
+- Every saved user preset maintains its own separate top-10 score lists for SOLO and VS, per mode. Factory scores are tracked separately by mode; unsaved Custom games deliberately do not enter a leaderboard.
+- Overwriting a slot with different game rules resets *that slot's* scores, to avoid comparing runs with incompatible rules. Re-saving identical rules and renaming the preset preserve its high scores.
+- Records and settings are saved in the LÖVE application data directory. Back them up before uninstalling an APK or changing app signatures.
 
-On `OPTIONS > CONTROLS`, choose one option:
+## Falling pieces and Zone
 
-- `DPAD + BUTTONS`: four **equal 42x42** direction buttons in a proper D-pad, large CCW/CW rotation buttons and BOOST.
-- `RELATIVE TOUCH` (default): drag your left-side finger to move the cursor a relative number of microcells; upper-right rotates clockwise, lower-right anticlockwise; a separate bottom-right BOOST button. No D-pad is shown in this mode.
+- Adjustable 0–3 hold slots and 0–5 look-ahead previews.
+- Optional wall kicks, T-spin recognition, unlimited rotation lock reset, gravity interval and lock delay.
+- Adjustable Zone charge, duration, release and gravity; an accumulating-line sweep option for extra-large line clears.
+- Mode-specific clear delays, connected-group sizes, and special-block spawn chances.
+- Optional CPU VS, garbage attacks and multi-block chain effects.
 
-Mouse control can independently be `OFF`, `DIRECT`, or `RELATIVE`. Direct mouse maps pointer location to the cursor and click rotates; relative mouse moves cursor by drag; right mouse rotates counterclockwise; middle mouse boosts. A USB/OTG gamepad, when supported by Android and LÖVE's joystick API, uses D-pad/left stick movement, A/B rotate, X or trigger boost, Y pause, shoulders rotate, Start confirm. Generic USB joystick fallback is provided. Touch-generated mouse duplicates are ignored.
+## Controls
 
-**On-phone options navigation:** Swipe the option list vertically to scroll. Tap left/right half of a row to decrease/increase its value. Tap the top-left/top-right of the options header for previous/next page. Tap bottom-left BACK or bottom-right APPLY. With a gamepad use up/down, left/right, shoulder buttons, A/B.
+- **Move:** D-pad, keyboard arrows, WASD or IJKL. Falling pieces: up rotates, left/right moves, down accelerates.
+- **Rotate:** X/Z (A/B gamepad). **Hard drop:** Space (falling modes). **Hold:** V. **Change selected hold slot:** G. **Zone:** F.
+- **Options:** O. **Pause:** P or Escape. **Mode select:** B from gameplay. **Game library tab:** Tab or gamepad shoulders while selecting a mode.
+- Touch: **DPAD+BUTTONS** or **RELATIVE TOUCH** (exclusive), selected on CONTROLS page. Physical keyboard and gamepad input remain independently configurable.
+- Android: USB-OTG keyboards and supported USB gamepads use LÖVE's standard input events. Exact mappings may vary with the controller/Android device.
 
-## USB keyboard controls
+## Graphics and performance
 
-USB/OTG and Bluetooth keyboards work on Android when Android and LÖVE expose ordinary key events. On the CONTROLS page, USB KEYBOARD can be enabled or disabled, the movement layout can be WASD + arrows, arrows only, or IJKL + arrows, and automatic key repeat can be changed. Z / X rotate, Space boosts, P pauses, O opens options, and Enter confirms. Physical keyboard input remains independent of the mutually exclusive touch overlay modes. Escape and O remain recovery keys for menus even with keyboard gameplay disabled.
+Choose NEON, 8-BIT, 4-BIT or 1-BIT. Set palette, saturation, brightness and hue, bloom strength, glow, explosions, particle count, trails, flashes, screen shake, background detail and adaptive quality independently. 14 designed palettes are included.
 
-## Controls and options
+## Building
 
-The menus include 17 option pages:
+The `.github/workflows/android-apk.yml` workflow packages every required Lua source file into one LÖVE archive and builds a debug Android APK via `love-actions-android@v2`, using LÖVE 11.5a. Upload the whole project to GitHub and run the workflow; artifacts are under the successful run. The bundle ID `com.chromatictide.game` is kept for installation compatibility with v0.7.x.
 
-- FIELD, MATCH, POWERS, SURGE + GARBAGE, CURSES
-- GRAPHICS, PALETTE, SOUND, CONTROLS, BOOST, VERSUS, PRESETS, EXTRAS
-- SHINE RULES, LINK RULES, ATTACK RULES, BRIDGE RULES
+For PortMaster, install the corresponding PortMaster ZIP; it uses the PortMaster LÖVE 11.5 shared runtime. No compilation is needed for that package.
 
-Each matching mode has its own clear delay, chain window, row speed, gravity interval, and score scale. Shine/Link/Bridge additionally configure sweep speed. Boost speed and scoring risk reward are independently adjustable; accelerated rise is dangerous but rewards players who can sustain it.
+## Validation and limits
 
-Specials always carry an ordinary colour and activate only when cleared. Separate occurrence probabilities are available for small/medium/large bombs, H/V beams, freeze, painter, shifter, surge, three sizes of offensive garbage and cursed Self-Garbage. Self-Garbage always affects the active board, even in solo mode; it cannot be cancelled by offensive scoring. Matching next to any connected garbage structure clears its entire orthogonally connected mass. Garbage itself can be moved by swap/rotation.
-
-VS CPU uses identical board rules for both sides; clears and combos send attacks with configurable CPU strength, garbage strength and delay. Eight saved preset slots each contain a full copy of the rules and cosmetic settings. Each slot has ten scores for every mode and solo/VS category. Saving over a slot resets its high-score table, preventing scores from mismatched rules from mixing. Unsaved custom settings are not assigned to a preset scoreboard until saved.
-
-The display can be `NEON`, `8-BIT`, `4-BIT`, or `1-BIT` (dithered), with independent bloom/glow, particles, flash, shake, trails, hue, brightness, saturation, contrast, automatic cycling, 24 palette themes and adaptive quality. Low graphics values can be used for modest Android hardware.
-
-## Build
-
-The GitHub Actions workflow under `.github/workflows/android-apk.yml` packages `source/` into a `.love` archive and builds an Android debug APK with love-actions-android v2 and LÖVE 11.5a. The current display name is **Lumine Attack**. The existing Android application ID `com.chromatictide.game` and LÖVE filesystem identity `chromatic_tide` are deliberately retained to allow installing over the previous version and preserving saved settings/high scores.
-
-For desktop, run the files under `source/` as a LÖVE game or open `LumineAttack_v0_7_3.love` with LÖVE 11.5. Avoid opening individual Lua files.
-
-## Notes
-
-The original Processing/OpenGL version and this LÖVE port use different renderers. Controller mappings, Android touch behaviour, and GPU support should still be verified on physical devices. Headless Lua logic and mocked LÖVE rendering tests are provided separately; those do not replace on-device testing.
+Source syntax, 12-mode dispatch, headless falling-piece stress tests, saved-preset/record persistence tests, and a mocked LÖVE rendering/input run were checked. These are **not** substitutes for testing an installed APK or the game's visuals/sound on physical hardware. Gameplay mechanics are original interpretations and combinations, not exact reproductions of commercial games.
