@@ -1,0 +1,47 @@
+name: Build Lumine Attack Zone Garden APK
+
+on:
+  push:
+    branches:
+      - zone-garden-apk-lab-20261122
+    paths:
+      - zone-garden-build/**
+      - .github/workflows/zone-garden-apk.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-zone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore standalone LÖVE 11.5 game archive
+        run: |
+          base64 --decode zone-garden-build/game.love.base64.txt > game.love
+          unzip -t game.love
+          unzip -l game.love
+      - name: Build dedicated Android APK with LÖVE 11.5a
+        uses: love-actions/love-actions-android@v2
+        with:
+          app-name: "Lumine Attack Zone Garden"
+          bundle-id: "com.chromatictide.zonegardenlab"
+          resource-path: "./android-res"
+          icon-specifier: "@drawable/ct_icon"
+          love-ref: "11.5a"
+          love-package: "./game.love"
+          product-name: "LumineZoneGarden"
+          version-string: "0.7.3"
+          version-code: 10705
+          output-folder: "./dist"
+      - name: Verify build output
+        run: |
+          find dist -type f -name '*.apk' -print
+          test -n "$(find dist -type f -name '*.apk' -print -quit)"
+      - name: Upload Zone Garden Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LumineAttack-ZoneGarden-Android-APK
+          path: dist/**/*.apk
+          if-no-files-found: error
