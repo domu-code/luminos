@@ -32,8 +32,8 @@ jobs:
           love-ref: "11.5a"
           love-package: "./game.love"
           product-name: "LumineZoneGarden"
-          version-string: "0.7.3"
-          version-code: 10705
+          version-string: "0.7.4"
+          version-code: 10706
           output-folder: "./dist"
       - name: Verify build output
         run: |
