@@ -83,7 +83,7 @@ function V:configure(cfg)
   scanlines=cfg.vfxScanlines==true,
   quality=clamp(floor(val(cfg.vfxQuality,2)),1,3),
  }
- self.presetName=p.name
+ self.activePresetName=p.name
 end
 function V:buildPoints()
  local c=self.config
