@@ -25,13 +25,13 @@ jobs:
       - name: Build dedicated Android APK with LÖVE 11.5a
         uses: love-actions/love-actions-android@v2
         with:
-          app-name: "Lumine Attack Zone Garden"
-          bundle-id: "com.chromatictide.zonegardenlab"
+          app-name: "Lumine Attack SoftScale"
+          bundle-id: "com.chromatictide.softscalelab"
           resource-path: "./android-res"
           icon-specifier: "@drawable/ct_icon"
           love-ref: "11.5a"
           love-package: "./game.love"
-          product-name: "LumineZoneGarden"
+          product-name: "LumineSoftScale"
           version-string: "0.7.4"
           version-code: 10706
           output-folder: "./dist"
@@ -42,6 +42,6 @@ jobs:
       - name: Upload Zone Garden Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: LumineAttack-ZoneGarden-Android-APK
+          name: LumineAttack-SoftScale-Android-APK
           path: dist/**/*.apk
           if-no-files-found: error
