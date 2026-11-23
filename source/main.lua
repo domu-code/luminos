@@ -1,5 +1,6 @@
 local Engine=require('engine')
 local VFXPresets=require('vfx_presets')
+local SoftAudio=require('soft_audio')
 local originalDefaults=Engine.defaults
 Engine.defaults=function(...)
   local c=originalDefaults(...)
@@ -91,6 +92,9 @@ local function loadSettings()
   cfg.labClearRule=clamp(math.floor(cfg.labClearRule or 3),1,6)
   cfg.slideShape=clamp(math.floor(cfg.slideShape or 3),1,3)
   cfg.zoneDuration=clamp(cfg.zoneDuration or 9,1,30)
+  cfg.tileset=clamp(math.floor(cfg.tileset or 1),1,9)
+  cfg.musicScale=clamp(math.floor(cfg.musicScale or 1),1,10)
+  cfg.musicRoot=clamp(math.floor(cfg.musicRoot or 0),0,11)
   return cfg
 end
 local function row(label,key,kind,mn,mx,step,values)
@@ -138,9 +142,21 @@ ui.pages={
    row('PALETTE SATURATION','paletteSaturation','float',0,2,.1),
    row('PALETTE BRIGHTNESS','paletteBrightness','float',.2,1.5,.1),
    row('PALETTE HUE','paletteHue','int',-180,180,5),
+    row('PIXEL TILESET','tileset','tileset',1,9,1),
    row('AUTOMATIC HUE DRIFT','hueDrift','bool'),
    row('PALETTE CYCLE SECS','paletteCycleSecs','float',0,60,2)},
-  {row('SOUND','sound','bool'),row('VOLUME','volume','float',0,1,.1),
+  {row('SOUND','sound','bool'),row('VOLUME','volume','float',0,1,.05),
+   row('GENERATIVE DRONE','musicEnabled','bool'),
+   row('MUSICAL SCALE','musicScale','scale',1,10,1),
+   row('ROOT NOTE','musicRoot','root',0,11,1),
+   row('DRONE LEVEL','musicDrone','float',0,.8,.025),
+   row('PAD ATTACK','musicAttack','float',.1,4,.1),
+   row('PAD RELEASE','musicRelease','float',.25,6,.25),
+   row('FILTER WARMTH','musicFilter','float',.05,.95,.05),
+   row('FILTER MOVEMENT','musicModDepth','float',0,.6,.025),
+   row('SFX ATTACK','sfxAttack','float',0,.3,.01),
+   row('SFX RELEASE','sfxRelease','float',.04,1.8,.05),
+   row('SFX BRIGHTNESS','sfxTone','float',0,.85,.05),
    row('SAFE ROWS','passive','locked'),row('ACTION CURSOR','cursor','locked'),
    row('TWO-ROW WAVES','waves','locked'),row('TOP OUT','topout','locked'),
    row('SAVING','save','locked')},
@@ -262,7 +278,10 @@ function ui.optionText(r,cfg)
     return r.key=='activeSlot' and (ui.activeSlot==0 and 'CUSTOM' or 'SLOT '..ui.activeSlot) or r.key=='boostrisk' and 'YES' or r.key=='risk' and 'SCORE X1-PLUS' or r.key=='garbageCluster' and 'ALL CONNECTED' or r.key=='selfCurse' and 'MANDATORY' or r.key=='effectColour' and 'YES / MATCHABLE' or r.key=='padSize' and 'EQUAL 42X42' or r.key=='relative' and 'LEFT DRAG' or r.key=='boost' and 'HOLD TO CHARGE' or r.key=='gamepad' and 'ALWAYS AVAILABLE' or r.key=='cursor' and 'MICROCELL' or r.key=='waves' and 'ONE ROW AT A TIME' or r.key=='topout' and 'ONE ROW EXIT' or r.key=='save' and 'AUTO' or 'DISABLED'
   end
   local v=cfg[r.key]
-  if r.key=='vfxPreset' then return (VFXPresets[v] and VFXPresets[v].name) or 'UNKNOWN' end
+  if r.kind=='tileset' then return ({'CLASSIC','ETCHED','DOT MATRIX','CHECKER','CIRCUIT','DIAGONAL','GEM','PIXEL RUNE','MOSAIC'})[v] end
+   if r.kind=='scale' then return ({'MAJOR','NATURAL MINOR','DORIAN','PENT MAJOR','PENT MINOR','LYDIAN','MIXOLYDIAN','PHRYGIAN','HARMONIC MINOR','WHOLE TONE'})[v] end
+   if r.kind=='root' then return ({'C','C#','D','D#','E','F','F#','G','G#','A','A#','B'})[v+1] end
+   if r.key=='vfxPreset' then return (VFXPresets[v] and VFXPresets[v].name) or 'UNKNOWN' end
   if r.key=='vfxPalette' then return ({'PRESET','ELECTRIC','SOLAR','SPECTRAL','ACID','ABYSS','MONOCHROME'})[v+1] end
   if r.key=='vfxBackground' then return ({'PRESET','TRIANGLE MESH','POINT FIELD','WAVEFIELD','FRACTURE'})[v+1] end
   if r.kind=='bool' then return v and 'ON' or 'OFF' end
@@ -295,7 +314,7 @@ local function changeOption(delta)
   if r.kind=='bool' then ui.cfg[r.key]=not ui.cfg[r.key]
   else
     local new=clamp(ui.cfg[r.key]+delta*(r.step or 1),r.min,r.max)
-    if r.kind=='int' or r.kind=='palette' then new=math.floor(new+.5)
+    if r.kind=='int' or r.kind=='palette' or r.kind=='tileset' or r.kind=='scale' or r.kind=='root' then new=math.floor(new+.5)
     else new=math.floor(new*10000+.5)/10000 end
     ui.cfg[r.key]=new
   end
@@ -318,6 +337,10 @@ local function start(mode,fromPreset)
   if not fromPreset then ui.activeSlot=0 end
   ui.cfg.selectedMode=mode
   ui.cfg.mode=mode==Modes.count and ui.cfg.customBase or mode
+  if mode==12 and not fromPreset then
+    ui.cfg.zoneEnabled=true;ui.cfg.zoneStartCharge=1;ui.cfg.zoneDuration=24
+    ui.cfg.zoneGravityScale=.35;ui.cfg.fallingGravity=1.05
+  end
   ui.mode=mode;ui.runMode=mode;ui.state='play';ui.paused=false
   ui.runSlot=ui.activeSlot
   ui.runVS=ui.cfg.vsCPU
@@ -368,30 +391,8 @@ local function leaveOptions(apply)
   else ui.cfg=loadSettings();setKeyboardRepeat(ui.cfg.keyboardRepeat);ui.keyBoost=false;ui.board.cfg=ui.cfg end
   ui.state=ui.prevState=='mode' and 'mode' or 'play'
 end
-local function generateSound(freq,duration,shape)
-  local rate=22050;local samples=math.floor(rate*duration)
-  local data=love.sound.newSoundData(samples,rate,16,1)
-  for i=0,samples-1 do
-    local t=i/rate;local envelope=math.pow(1-t/duration,2.3)
-    local detune=shape=='beam' and 1+.3*math.sin(t*8) or 1
-    local wave=math.sin(2*math.pi*freq*t*detune)+.21*math.sin(2*math.pi*freq*2.01*t)
-    if shape=='bomb' then wave=wave+.4*math.sin(2*math.pi*freq*.43*t) end
-    data:setSample(i,clamp(wave*.27*envelope,-1,1))
-  end
-  return love.audio.newSource(data,'static')
-end
 function sound.play(event)
-  if not ui.cfg or not ui.cfg.sound then return end
-  local src=sound.bank[event] or sound.bank.rotate
-  if src then
-    local clone=src:clone()
-    local vol=ui.cfg.volume or .55
-    if event=='super' or event=='chain' or event:sub(1,5)=='combo' then vol=vol*(ui.cfg.comboVolume or 1) end
-    clone:setVolume(math.min(1,vol))
-    clone:play()
-    sound.playing[#sound.playing+1]=clone
-    if #sound.playing>24 then table.remove(sound.playing,1) end
-  end
+  if sound.engine and ui.cfg then sound.engine:play(event,ui.cfg) end
 end
 local function dispatch(action)
   local state=ui.state
@@ -500,14 +501,7 @@ function love.load()
   ui.boost=false;ui.touchFingers={};ui.keyBoost=false;ui.padBoost=false
   ui.mouseBoost=false;ui.mouseHeld=false;ui.mouseMoved=false;ui.mouseStartX=0;ui.mouseStartY=0
   ui.repeatDelay=0;ui.lastDir=nil
-  sound.playing={}
-  sound.bank={rotate=generateSound(440,.12),rise=generateSound(150,.065),
-    start=generateSound(659,.3),clear=generateSound(659,.42),
-    dual=generateSound(880,.5),bomb=generateSound(112,.45,'bomb'),
-    beam=generateSound(1190,.48,'beam'),lose=generateSound(105,.85,'bomb'),
-    chain=generateSound(740,.65),super=generateSound(1070,.92,'beam'),
-    surge=generateSound(380,.46,'beam'),garbage=generateSound(180,.64,'bomb'),curse=generateSound(95,.75,'bomb')}
-  for i=2,8 do sound.bank['combo'..i]=generateSound(480*2^((i-2)/12),.46+i*.05,'beam') end
+  sound.engine=SoftAudio.new()
   resetBoard()
   if ui.touch then pcall(love.window.setFullscreen,true,'desktop') end
 end
@@ -520,7 +514,7 @@ function love.update(dt)
       if pad:isGamepad() then
         if (not ui.board.isFalling and pad:isGamepadDown('x')) or pad:getGamepadAxis('triggerleft')>.6 or
           pad:getGamepadAxis('triggerright')>.6 then ui.padBoost=true;break end
-      elseif pad:getButtonCount()>=3 and pad:isDown(3) then ui.padBoost=true;break end
+      elseif pad:getButtonCount()>=8 and pad:isDown(3) then ui.padBoost=true;break end
     end
   end
   local touchBoost=false
@@ -550,7 +544,7 @@ function love.update(dt)
     end
     ui.vs.board.soundEvents={}
   end
-  for i=#sound.playing,1,-1 do if not sound.playing[i]:isPlaying() then table.remove(sound.playing,i) end end
+  if sound.engine then sound.engine:update(dt,ui.cfg,ui.board) end
   -- Repeating held d-pad directions and analog sticks on handheld controllers.
   local active
   if ui.cfg.gamepadEnabled then
@@ -560,7 +554,7 @@ function love.update(dt)
         ax=j:getGamepadAxis('leftx');ay=j:getGamepadAxis('lefty')
         left=j:isGamepadDown('dpleft');right=j:isGamepadDown('dpright')
         up=j:isGamepadDown('dpup');down=j:isGamepadDown('dpdown')
-      else
+      elseif j:getButtonCount()>=8 then
         if j:getAxisCount()>0 then ax=j:getAxis(1) end
         if j:getAxisCount()>1 then ay=j:getAxis(2) end
         if j:getHatCount()>0 then
@@ -657,7 +651,7 @@ function love.gamepadreleased(joystick,button)
 end
 -- Generic USB/OTG controllers which do not expose the standard gamepad mapping.
 function love.joystickpressed(joystick,button)
-  if not ui.cfg.gamepadEnabled or joystick:isGamepad() then return end
+  if not ui.cfg.gamepadEnabled or joystick:isGamepad() or (love.system.getOS()=='Android' and joystick:getButtonCount()<8) then return end
   local bindings={[1]='cw',[2]='ccw',[4]='y',[7]='back',[8]='start'}
   local action=bindings[button]
   if action then dispatch(action) end
@@ -676,7 +670,7 @@ local function screenTouch(x,y)
         if slot>=1 and slot<=16 then ui.presetSlot=slot;dispatch('start') end
       else
         local row=math.floor((ry-93)/43)
-        local m=(rx>=320 and 7 or 1)+row
+        local m=(rx>=320 and 8 or 1)+math.floor((ry-93)/38)
         if m>=1 and m<=Modes.count then ui.mode=m;dispatch('start') end
       end
     elseif ry>=367 and ry<399 then dispatch('versus')
