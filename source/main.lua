@@ -1,4 +1,5 @@
 local Engine=require('engine')
+local VFXPresets=require('vfx_presets')
 local originalDefaults=Engine.defaults
 Engine.defaults=function(...)
   local c=originalDefaults(...)
@@ -261,6 +262,9 @@ function ui.optionText(r,cfg)
     return r.key=='activeSlot' and (ui.activeSlot==0 and 'CUSTOM' or 'SLOT '..ui.activeSlot) or r.key=='boostrisk' and 'YES' or r.key=='risk' and 'SCORE X1-PLUS' or r.key=='garbageCluster' and 'ALL CONNECTED' or r.key=='selfCurse' and 'MANDATORY' or r.key=='effectColour' and 'YES / MATCHABLE' or r.key=='padSize' and 'EQUAL 42X42' or r.key=='relative' and 'LEFT DRAG' or r.key=='boost' and 'HOLD TO CHARGE' or r.key=='gamepad' and 'ALWAYS AVAILABLE' or r.key=='cursor' and 'MICROCELL' or r.key=='waves' and 'ONE ROW AT A TIME' or r.key=='topout' and 'ONE ROW EXIT' or r.key=='save' and 'AUTO' or 'DISABLED'
   end
   local v=cfg[r.key]
+  if r.key=='vfxPreset' then return (VFXPresets[v] and VFXPresets[v].name) or 'UNKNOWN' end
+  if r.key=='vfxPalette' then return ({'PRESET','ELECTRIC','SOLAR','SPECTRAL','ACID','ABYSS','MONOCHROME'})[v+1] end
+  if r.key=='vfxBackground' then return ({'PRESET','TRIANGLE MESH','POINT FIELD','WAVEFIELD','FRACTURE'})[v+1] end
   if r.kind=='bool' then return v and 'ON' or 'OFF' end
   if r.kind=='touch' then return v==1 and 'DPAD + BUTTONS' or 'RELATIVE TOUCH' end
   if r.kind=='style' then return ({'NEON','8-BIT','4-BIT','1-BIT'})[v] end
