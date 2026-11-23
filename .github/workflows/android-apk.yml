@@ -3,7 +3,7 @@ name: Build Lumine Attack Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, lumine-vfx-v0-9-0]
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ jobs:
       - name: Package the game for LÖVE 11.5
         run: |
           cd source
-          zip -9 -q ../game.love conf.lua main.lua engine.lua falling.lua modes.lua render.lua palettes.lua pixel.lua records.lua versus.lua
+          zip -9 -q ../game.love conf.lua main.lua engine.lua falling.lua modes.lua render.lua palettes.lua pixel.lua records.lua versus.lua vfx.lua vfx_presets.lua
           cd ..
           unzip -t game.love
       - name: Build Android APK with LÖVE 11.5a
@@ -29,8 +29,8 @@ jobs:
           love-ref: "11.5a"
           love-package: "./game.love"
           product-name: "LumineAttack"
-          version-string: "0.8.0"
-          version-code: 80
+          version-string: "0.9.0"
+          version-code: 90
           output-folder: "./dist"
       - name: Inspect generated APKs
         run: |
@@ -39,6 +39,6 @@ jobs:
       - name: Upload installable Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LumineAttack-Android-APK
+          name: LumineAttack-v0.9.0-VFX-Android-APK
           path: dist/**/*.apk
           if-no-files-found: error
