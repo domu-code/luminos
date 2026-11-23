@@ -18,6 +18,9 @@ local default={mode=1,cols=10,rows=20,colours=5,startRows=6,minGroup=3,
   painter=.003,shifter=.002,freezeRate=.01,freezeSecs=5.0,
   palette=1,hueDrift=true,bloom=true,adaptive=true,particles=true,
   sound=true,volume=.42,gameSpeed=1.0,bonusText=true,
+  selectedSubmode=1,ghostPiece=true,ghostOpacity=.58,
+  submode1=1,submode2=1,submode3=1,submode4=1,submode5=1,submode6=1,
+  submode7=1,submode8=1,submode9=1,submode10=1,submode11=1,submode12=1,submode13=1,
   tileset=1,musicEnabled=true,musicScale=1,musicRoot=0,musicDrone=.23,
   musicAttack=1.2,musicRelease=2.6,musicFilter=.32,musicModDepth=.13,
   sfxAttack=.025,sfxRelease=.36,sfxTone=.22,
@@ -218,12 +221,12 @@ function Engine:move(dx,dy)
   self.cy=clamp(self.cy+dy,1,self.h-(self.cfg.mode==3 and 0 or 1))
 end
 function Engine:act(clockwise)
-  if self.gameover then return end
+  if self.gameover then return false end
   local x,y=self.cx,self.cy
   local positions={}
   if self.cfg.mode==3 then
     positions={{x,y},{x+1,y}}
-    if self.grid[y][x]==self.grid[y][x+1] and self.icon[y][x]==self.icon[y][x+1] and self.fx[y][x]==self.fx[y][x+1] then return end
+    if self.grid[y][x]==self.grid[y][x+1] and self.icon[y][x]==self.icon[y][x+1] and self.fx[y][x]==self.fx[y][x+1] then return false end
     for _,layer in ipairs({'grid','icon','fx','readyC','readyI'}) do
       local t=self[layer];t[y][x],t[y][x+1]=t[y][x+1],t[y][x]
     end
@@ -239,6 +242,7 @@ function Engine:act(clockwise)
   for _,p in ipairs(positions) do self.touched[p[2]][p[1]]=true end
   self.dirty=true;self.cascade=false;self:sound('rotate')
   self:burst(x+1,y+.8,self.grid[y][x],6)
+  return true
 end
 function Engine:components(out,eligible,dimension,minimum,bridge)
   local w,h=self.w,self.h;local visited=empty(w,h,false)

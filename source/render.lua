@@ -1,6 +1,7 @@
 local VFX=require('vfx')
 local P=require('palettes')
 local Modes=require('modes')
+local Submodes=require('submodes')
 local F=require('pixel')
 local R={}
 R.__index=R
@@ -269,8 +270,9 @@ function R:board(board,cfg,t,view)
       local px=bx+(x-1)*S;local py=by+(y-1)*S
       local r,gg,b=cellRGB(cfg,c,t)
       if ghost then
-        g.setColor(r,gg,b,.24);g.rectangle('fill',px+2,py+2,S-4,S-4)
-        g.setColor(r,gg,b,.66);g.rectangle('line',px+1.5,py+1.5,S-3,S-3)
+        local alpha=cfg.ghostOpacity or .58
+        g.setColor(r,gg,b,alpha*.36);g.rectangle('fill',px+2,py+2,S-4,S-4)
+        g.setColor(r,gg,b,alpha);g.rectangle('line',px+1.5,py+1.5,S-3,S-3)
       else
         g.setColor(r,gg,b,.6);g.rectangle('fill',px-1,py-1,S+2,S+2)
         g.setColor(r*.46,gg*.46,b*.46,1);g.rectangle('fill',px+1,py+1,S-2,S-2)
@@ -279,7 +281,7 @@ function R:board(board,cfg,t,view)
         if cell[4]==20 or cell[4]==21 then txt(cell[4]==20 and 'C' or 'A',px+S/2,py+4,1,{1,1,1},'center') end
       end
     end
-    if cfg.ghostPiece and board.active then
+    if cfg.ghostPiece~=false and board.active then
       for _,v in ipairs(board:ghostCells()) do drawPieceCell(v,true) end
     end
     if board.active then
@@ -445,23 +447,24 @@ function R:drawTouch(ui)
     button(18,294,42,42,'<')
     button(102,294,42,42,'>')
     button(60,336,42,42,'V')
-    button(443,268,68,68,'CCW',true)
-    button(518,268,68,68,'CW',true)
-    button(443,359,143,57,'BOOST',ui.boost)
+    button(443,268,68,53,'CCW',true)
+    button(518,268,68,53,'CW',true)
+    if ui.board and ui.board.isFalling then button(443,326,143,42,'HARD DROP',true) end
+    button(443,379,143,44,'BOOST',ui.boost)
   else
     -- No D-pad exists in relative mode. The left side is a gesture surface.
     rect(7,363,204,51,{.025,.12,.20,.48})
     rect(7,363,204,51,{.35,.88,1,.35},true)
     txt('LEFT  DRAG TO MOVE',109,380,1,{.76,.93,1},'center')
     rect(438,62,190,140,{.06,.18,.25,.07})
-    rect(438,222,190,134,{.17,.08,.22,.07})
-    txt('ROTATE CW',586,128,1,{.61,1,1},'center')
-    txt('ROTATE CCW',581,283,1,{1,.66,.95},'center')
+    rect(438,222,190,86,{.17,.08,.22,.07})
+    txt('ROTATE CW',568,128,1,{.61,1,1},'center')
+    txt('ROTATE CCW',564,262,1,{1,.66,.95},'center')
+    if ui.board and ui.board.isFalling then button(438,309,190,53,'HARD DROP',true) end
     button(438,367,190,57,'BOOST',ui.boost)
   end
   if ui.board and ui.board.isFalling then
     button(144,4,86,35,'HOLD',false)
-    button(240,4,86,35,'DROP',true)
     button(336,4,88,35,'ZONE',ui.board.zoneActive)
   end
   button(594,7,35,30,'II')
@@ -505,7 +508,24 @@ function R:menu(state,cfg,ui)
     rect(57,365,526,29,{.05,.14,.22,.92})
     rect(57,365,526,29,{.31,.85,1,.54},true)
     txt('VS CPU '..(cfg.vsCPU and 'ON' or 'OFF')..'   [V TO TOGGLE]',LW/2,374,1,{cfg.vsCPU and 1 or .63,.97,1},'center')
-    txt('13 MODES   A PLAY   TAB PRESETS   Y OPTIONS',LW/2,400,1,{.71,.81,.85},'center')
+    txt('13 STYLES  A NEXT  TAB PRESETS  Y OPTIONS',LW/2,400,1,{.71,.81,.85},'center')
+  elseif state=='submode' then
+    local chosen=Submodes.forMode(ui.mode)
+    txt(Modes.name(ui.mode)..'  /  CHOOSE GAME MODE',LW/2,61,2,{.75,.98,1},'center')
+    txt('SELECT AN OBJECTIVE, THEN PLAY',LW/2,83,1,{.66,.81,.91},'center')
+    local window=5
+    local first=math.max(1,math.min((ui.submode or 1)-2,math.max(1,#chosen-window+1)))
+    for i=first,math.min(#chosen,first+window-1) do
+      local entry=chosen[i]
+      local y=104+(i-first)*52
+      local selected=i==(ui.submode or 1)
+      rect(68,y,504,46,selected and {.10,.26,.36,.96} or {.045,.11,.17,.91})
+      rect(68,y,504,46,selected and {.44,.95,1,.95} or {.22,.52,.70,.37},true)
+      txt(string.format('%02d  %s',i,entry.name),81,y+5,2,selected and {1,1,.84} or {.74,.94,1})
+      txt(entry.description,81,y+28,1,{.66,.82,.89})
+      if selected then txt('>',555,y+15,2,{1,.95,.7}) end
+    end
+    txt('UP/DOWN: '..(ui.submode or 1)..'/'..#chosen..'    B: STYLES    A: PLAY',LW/2,397,1,{.78,.96,1},'center')
   elseif state=='options' then
     local page=ui.page
     local title=ui.pageNames[page]
@@ -528,18 +548,25 @@ function R:menu(state,cfg,ui)
     txt('BACK                          APPLY',LW/2,397,1,{.69,.87,.94},'center')
   elseif state=='scores' then
     local slot=ui.scoreSlot or 0
-    local scores=ui.records:list(slot,ui.scoreMode,ui.scoreVS)
+    local selectedSubmode=ui.scoreSubmode or 1
+    local scores=ui.records:list(slot,ui.scoreMode,ui.scoreVS,selectedSubmode)
     local label=Modes.name(ui.scoreMode)
+    local objective=selectedSubmode==0 and {name='LEGACY SCORES',kind='legacy'}
+      or Submodes.get(ui.scoreMode,selectedSubmode)
     local record=slot>0 and ui.records.slots[slot]
     local source=record and record.name or slot==0 and 'FACTORY MODES' or ('EMPTY SLOT '..slot)
     txt('HIGHSCORES / '..source,LW/2,65,2,{.72,.98,1},'center')
-    txt(label..'  '..(ui.scoreVS and 'VS CPU' or 'SOLO'),LW/2,93,2,{1,.82,.55},'center')
+    txt(label..' / '..objective.name,LW/2,93,2,{1,.82,.55},'center')
+    txt(ui.scoreVS and 'VS CPU' or 'SOLO',LW/2,108,1,{.74,.9,1},'center')
     if #scores==0 then txt(slot==0 and ui.scoreMode==Modes.count and 'SAVE CUSTOM PRESET FIRST' or 'NO RECORDED SCORES',LW/2,178,2,{.7,.85,1},'center') end
     for i,sc in ipairs(scores) do
-      local line=string.format('%02d   %08d   CHAIN %d %s',i,sc.points,sc.chain,sc.won and 'WIN' or '')
-      txt(line,LW/2,118+(i-1)*24,1,{.77,.96,1},'center')
+      local line
+      if objective.kind=='sprint' then
+        line=string.format('%02d  %06.2f SEC  %08d  %s',i,sc.seconds or 0,sc.points,sc.won and 'COMPLETE' or 'DNF')
+      else line=string.format('%02d  %08d  CHAIN %d  %s',i,sc.points,sc.chain,sc.won and 'GOAL' or '') end
+      txt(line,LW/2,119+(i-1)*23,1,{.77,.96,1},'center')
     end
-    txt('LEFT RIGHT MODE  UP DOWN TYPE',LW/2,368,1,{.75,.94,1},'center')
+    txt('LEFT/RIGHT GAME   UP/DOWN SUBMODE   V: VS',LW/2,368,1,{.75,.94,1},'center')
     txt('A / B BACK TO PRESETS',LW/2,396,1,{.75,.94,1},'center')
   elseif state=='rename' then
     txt('NAME YOUR USER PRESET',LW/2,65,2,{.75,1,.92},'center')
@@ -553,7 +580,8 @@ function R:menu(state,cfg,ui)
     local help={'MOVE: DPAD OR ARROW KEYS','SHINE: SOLID SQUARES / SWEEP','LINK: CONNECT COLOURS / SWEEP','ATTACK: MATCH THREE / GRAVITY','BRIDGE: CONNECT BOTH SIDE WALLS','TETRIS: FALLING LINES / OPTIONAL ZONE','TETRIS SWEEP: COLLECT MANY LINES','PUYO / FIGHTER / BAKU: FALLING PAIRS','SLIDEFALL: TRIADS / CLUSTERS','MIX LAB: MIX PIECES AND CLEAR RULES','CUSTOM: SELECT BASE + EDIT / SAVE','FALLING: SPACE DROP / V HOLD / F ZONE','G SELECT HOLD / SHIFT+ARROW SLIDE','PRESS B TO RETURN'}
     for i,s in ipairs(help) do txt(s,72,109+(i-1)*21,1,{.8,.9,.99}) end
   elseif state=='pause' or state=='gameover' then
-    txt(state=='pause' and 'PAUSED' or 'GAME OVER',LW/2,105,3,{1,.84,.95},'center')
+    txt(state=='pause' and 'PAUSED' or ((ui.finishResult and ui.finishResult~='TOP OUT' and ui.finishResult~='OUT OF SWAPS' and ui.finishResult~='DEFEAT') and 'ROUND COMPLETE' or 'GAME OVER'),LW/2,105,3,{1,.84,.95},'center')
+    if state=='gameover' then txt(ui.finishResult or 'TOP OUT',LW/2,135,1,{.89,.99,.7},'center') end
     if ui.vs then
       txt('WINNER: '..(ui.vs.winner or 'PENDING'),LW/2,141,2,{1,.78,.85},'center')
       txt('YOU '..ui.board.score..'   CPU '..ui.vs.board.score,LW/2,170,2,{.75,.99,1},'center')
@@ -616,6 +644,9 @@ function R:draw(ui)
       self:board(ui.vs.board,cfg,ui.vs.board.time,{x=354,y=68,tile=tile})
       self:vsHud(ui)
     else self:board(board,cfg,board.time);self:hud(board,cfg,ui) end
+    if ui.runSpec then
+      txt(Submodes.hud(ui.runSpec,board,ui.runElapsed or 0,ui.actionCount or 0),LW/2,8,1,{.88,.96,.7},'center')
+    end
     if ui.touch and ui.state=='play' then self:drawTouch(ui) end
     if ui.runMode==Modes.count then
       local stamp=ui.runSlot and ui.runSlot>0 and ui.records.slots[ui.runSlot]

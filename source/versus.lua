@@ -1,5 +1,6 @@
 -- CPU opponent and versus attack exchange, using the same Engine API as the player.
 local Engine=require('engine')
+local Falling=require('falling')
 local V={};V.__index=V
 local floor,min,max,random=math.floor,math.min,math.max,math.random
 local function cellMatches(b)
@@ -10,13 +11,23 @@ local function cellMatches(b)
 end
 function V.new(cfg)
   local v=setmetatable({},V)
-  v.cfg=cfg;v.board=Engine.new(cfg);v.timer=.8;v.target=nil
+  v.cfg=cfg;v.board=(cfg.mode>=5 and Falling or Engine).new(cfg);v.timer=.8;v.target=nil
   v.ended=false;v.winner=nil;v.ticks=0
   return v
 end
 function V:choose()
   local b=self.board
   if b.gameover then return end
+  if b.isFalling then
+    if b.active and not b.pendingCells and not b.zoneActive then
+      if random()<.64 then b:rotate(random()<.5) end
+      local shift=random(-math.max(2,math.floor(b.w/3)),math.max(2,math.floor(b.w/3)))
+      for i=1,math.abs(shift) do b:move(shift>0 and 1 or -1,0) end
+      b:hardDrop()
+    end
+    self.ticks=self.ticks+1
+    return
+  end
   local samples=8+floor(18*self.cfg.cpuSkill)
   local current=cellMatches(b);local best=-1e9;local destination=nil
   for n=1,samples do

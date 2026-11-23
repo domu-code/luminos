@@ -1,0 +1,46 @@
+name: Build Lumine Attack v0.9.2 Submodes Android APK
+
+on:
+  push:
+    branches:
+      - lumine-v092-submodes-ghost-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-submodes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package LÖVE 11.5 game and validate Lua list
+        run: |
+          cd source
+          zip -9 -q ../game.love conf.lua main.lua engine.lua falling.lua modes.lua render.lua palettes.lua pixel.lua records.lua versus.lua vfx.lua vfx_presets.lua soft_audio.lua submodes.lua
+          cd ..
+          unzip -t game.love
+          unzip -Z1 game.love | grep -qx 'submodes.lua'
+      - name: Build Android APK using LÖVE 11.5a
+        uses: love-actions/love-actions-android@v2
+        with:
+          app-name: "Lumine Attack Modes"
+          bundle-id: "com.chromatictide.submodeslab"
+          resource-path: "./android-res"
+          icon-specifier: "@drawable/ct_icon"
+          love-ref: "11.5a"
+          love-package: "./game.love"
+          product-name: "LumineAttackModes"
+          version-string: "0.9.2"
+          version-code: 92
+          output-folder: "./dist"
+      - name: Check APK exists
+        run: |
+          find dist -type f -name '*.apk' -print
+          test -n "$(find dist -type f -name '*.apk' -print -quit)"
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LumineAttack-v0.9.2-GameModes-Android-APK
+          path: dist/**/*.apk
+          if-no-files-found: error

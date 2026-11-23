@@ -19,8 +19,11 @@ local function name(s,default)
   s=s:sub(1,18):gsub('^%s+',''):gsub('%s+$','')
   return s=='' and (default or 'CUSTOM') or s
 end
-local function scoreKey(mode,versus)
-  return (versus and 'V' or 'S')..tostring(mode)
+local function scoreKey(mode,versus,submode)
+  local base=(versus and 'V' or 'S')..tostring(mode)
+  -- Zero is the archived pre-submode leaderboard. New modes never mix with it.
+  if not submode or submode<=0 then return base end
+  return base..'M'..tostring(math.floor(submode))
 end
 local function appendScores(parts,scores)
   parts[#parts+1]='{' 
@@ -29,8 +32,9 @@ local function appendScores(parts,scores)
   for _,k in ipairs(keys) do
     parts[#parts+1]=string.format('[%q]={',k)
     for _,item in ipairs(scores[k]) do
-      parts[#parts+1]=string.format('{points=%.0f,chain=%d,cleared=%d,won=%s},',
-        tonumber(item.points) or 0,tonumber(item.chain) or 0,tonumber(item.cleared) or 0,tostring(item.won==true))
+      parts[#parts+1]=string.format('{points=%.0f,chain=%d,cleared=%d,won=%s,seconds=%.3f},',
+        tonumber(item.points) or 0,tonumber(item.chain) or 0,tonumber(item.cleared) or 0,
+        tostring(item.won==true),tonumber(item.seconds) or 0)
     end
     parts[#parts+1]='},'
   end
@@ -104,7 +108,7 @@ function R:load(slot,defaults)
   for k,v in pairs(cfg) do if type(rec.cfg[k])==type(v) then cfg[k]=rec.cfg[k] end end
   return cfg
 end
-function R:list(slot,mode,versus)
+function R:list(slot,mode,versus,submode)
   local records
   if slot==0 then records=self.factoryScores
   else
@@ -112,26 +116,33 @@ function R:list(slot,mode,versus)
     if not rec then return {} end
     records=rec.scores
   end
-  return records[scoreKey(mode,versus)] or {}
+  return records[scoreKey(mode,versus,submode)] or {}
 end
-function R:record(slot,mode,versus,score,chain,cleared,won)
+function R:record(slot,mode,versus,score,chain,cleared,won,submode,seconds)
   if type(score)~='number' or score<1 then return end
   local records
   if slot==0 then
     -- Unsaved Custom rules change between plays, so they need a saved preset
     -- before records can be compared fairly.
-    if mode==12 then return end
+    if mode==13 then return end
     records=self.factoryScores
   else
     local rec=self.slots[slot];if not rec then return end
     records=rec.scores
   end
-  local key=scoreKey(mode,versus)
+  local key=scoreKey(mode,versus,submode)
   local scores=records[key] or {}
-  scores[#scores+1]={points=math.floor(score),chain=math.floor(chain or 0),cleared=math.floor(cleared or 0),won=won==true}
+  local this={points=math.floor(score),chain=math.floor(chain or 0),
+    cleared=math.floor(cleared or 0),won=won==true,seconds=tonumber(seconds) or 0}
+  scores[#scores+1]=this
+  local Submodes=require('submodes')
+  local kind=Submodes.get(mode,submode or 1).kind
   table.sort(scores,function(a,b)
-    if versus and a.won~=b.won then return a.won end
-    return a.points>b.points
+    if (kind=='sprint' or versus) and a.won~=b.won then return a.won end
+    if kind=='sprint' and a.won and b.won and a.seconds~=b.seconds then
+      return (a.seconds or 0)<(b.seconds or 0) end
+    if a.points~=b.points then return a.points>b.points end
+    return (a.seconds or 999999)<(b.seconds or 999999)
   end)
   while #scores>10 do table.remove(scores) end
   records[key]=scores

@@ -1,6 +1,7 @@
 local Engine=require('engine')
 local VFXPresets=require('vfx_presets')
 local SoftAudio=require('soft_audio')
+local Submodes=require('submodes')
 local originalDefaults=Engine.defaults
 Engine.defaults=function(...)
   local c=originalDefaults(...)
@@ -95,6 +96,8 @@ local function loadSettings()
   cfg.tileset=clamp(math.floor(cfg.tileset or 1),1,9)
   cfg.musicScale=clamp(math.floor(cfg.musicScale or 1),1,10)
   cfg.musicRoot=clamp(math.floor(cfg.musicRoot or 0),0,11)
+  cfg.ghostOpacity=clamp(cfg.ghostOpacity or .58,.12,1)
+  cfg.selectedSubmode=Submodes.clamp(cfg.selectedMode,cfg.selectedSubmode)
   return cfg
 end
 local function row(label,key,kind,mn,mx,step,values)
@@ -216,6 +219,8 @@ ui.pages={
    row('BRIDGE SCORE SCALE','bridgeScorePower','float',.25,5,.25)},
   {row('HOLD SLOTS','holdSlots','int',0,3,1),
    row('LOOK AHEAD','nextPreview','int',0,5,1),
+   row('GHOST LANDING','ghostPiece','bool'),
+   row('GHOST OPACITY','ghostOpacity','float',.12,1,.04),
    row('SRS WALL KICKS','wallKicks','bool'),
    row('RECOGNISE T-SPINS','tSpins','bool'),
    row('INFINITE SPIN RESET','infiniteSpin','bool'),
@@ -326,9 +331,11 @@ local function changePage(dir)
   ui.selected=1;sound.play('rotate')
 end
 local function resetBoard()
-  ui.board=(ui.cfg.mode>=5 and Falling or Engine).new(ui.cfg)
-  ui.board.cfg=ui.cfg
-  ui.vs=ui.cfg.vsCPU and Versus.new(ui.cfg) or nil
+  local c=ui.playCfg or ui.cfg
+  ui.board=(c.mode>=5 and Falling or Engine).new(c)
+  ui.board.cfg=c
+  ui.vs=c.vsCPU and Versus.new(c) or nil
+  ui.runElapsed=0;ui.actionCount=0;ui.finishResult=nil
   ui.scoreSaved=false
   ui.renderer.quality=ui.cfg.adaptive and 2 or 3
   ui.renderer:resizeBlur()
@@ -337,13 +344,21 @@ local function start(mode,fromPreset)
   if not fromPreset then ui.activeSlot=0 end
   ui.cfg.selectedMode=mode
   ui.cfg.mode=mode==Modes.count and ui.cfg.customBase or mode
+  ui.submode=Submodes.clamp(mode,ui.submode or ui.cfg.selectedSubmode or 1)
+  ui.cfg.selectedSubmode=ui.submode
+  ui.cfg['submode'..mode]=ui.submode
+  ui.runSpec=Submodes.get(mode,ui.submode)
+  ui.playCfg=Submodes.configure(mode,ui.submode,ui.cfg)
+  ui.originalFallGravity=ui.playCfg.fallingGravity or .8
   if mode==12 and not fromPreset then
     ui.cfg.zoneEnabled=true;ui.cfg.zoneStartCharge=1;ui.cfg.zoneDuration=24
     ui.cfg.zoneGravityScale=.35;ui.cfg.fallingGravity=1.05
+    ui.playCfg=Submodes.configure(mode,ui.submode,ui.cfg)
   end
   ui.mode=mode;ui.runMode=mode;ui.state='play';ui.paused=false
   ui.runSlot=ui.activeSlot
-  ui.runVS=ui.cfg.vsCPU
+  ui.runSubmode=ui.submode
+  ui.runVS=ui.playCfg.vsCPU
   resetBoard();saveSettings();sound.play('start')
 end
 local function saveScore()
@@ -352,7 +367,9 @@ local function saveScore()
   if ui.records then
     ui.records:record(ui.runSlot or 0,ui.runMode or ui.cfg.selectedMode or ui.cfg.mode,ui.runVS or false,
       ui.board.score,ui.board.bestChain,ui.board.cleared,
-      ui.vs and ui.vs.winner=='PLAYER' or false)
+      ui.finishResult~=nil and ui.finishResult~='OUT OF SWAPS' and ui.finishResult~='TOP OUT'
+        or (ui.vs and ui.vs.winner=='PLAYER' or false),
+      ui.runSubmode or ui.submode or 1,ui.runElapsed or 0)
   end
 end
 local function actionPreset()
@@ -364,7 +381,8 @@ local function actionPreset()
   elseif r.key=='loadPreset' then
     local loaded=ui.records:load(ui.presetSlot,Engine.defaults())
     if loaded then ui.cfg=loaded;setKeyboardRepeat(ui.cfg.keyboardRepeat);ui.activeSlot=ui.presetSlot
-      ui.mode=loaded.selectedMode or loaded.mode;ui.scoreMode=ui.mode;ui.scoreSlot=ui.presetSlot
+      ui.mode=loaded.selectedMode or loaded.mode;ui.submode=Submodes.clamp(ui.mode,loaded.selectedSubmode or 1)
+      ui.scoreMode=ui.mode;ui.scoreSubmode=ui.submode;ui.scoreSlot=ui.presetSlot
       ui.toast='SLOT '..ui.presetSlot..' LOADED'
       saveSettings()
     else ui.toast='SLOT IS EMPTY' end
@@ -375,11 +393,12 @@ local function actionPreset()
       if love.keyboard and love.keyboard.setTextInput then love.keyboard.setTextInput(true) end
     else ui.toast='SAVE THE SLOT FIRST' end
   elseif r.key=='scores' then
+    ui.scoreSubmode=Submodes.clamp(ui.scoreMode,ui.scoreSubmode or 1)
     ui.state='scores'
   end
 end
 local function options()
-  if ui.state=='mode' then
+  if ui.state=='mode' or ui.state=='submode' then
     ui.cfg.selectedMode=ui.mode
     if ui.mode==Modes.count then ui.cfg.mode=ui.cfg.customBase else ui.cfg.mode=ui.mode end
   end
@@ -387,9 +406,12 @@ local function options()
 end
 local function leaveOptions(apply)
   if apply then
-    setKeyboardRepeat(ui.cfg.keyboardRepeat);ui.keyBoost=false;saveSettings();resetBoard()
+    setKeyboardRepeat(ui.cfg.keyboardRepeat);ui.keyBoost=false;saveSettings()
+    if ui.prevState=='play' then ui.playCfg=Submodes.configure(ui.runMode,ui.runSubmode,ui.cfg)
+    else ui.playCfg=nil end
+    resetBoard()
   else ui.cfg=loadSettings();setKeyboardRepeat(ui.cfg.keyboardRepeat);ui.keyBoost=false;ui.board.cfg=ui.cfg end
-  ui.state=ui.prevState=='mode' and 'mode' or 'play'
+  ui.state=(ui.prevState=='mode' or ui.prevState=='submode') and ui.prevState or 'play'
 end
 function sound.play(event)
   if sound.engine and ui.cfg then sound.engine:play(event,ui.cfg) end
@@ -416,11 +438,23 @@ local function dispatch(action)
           ui.cfg=loaded;ui.cfg.vsCPU=menuVS
           ui.activeSlot=ui.presetSlot;ui.mode=loaded.selectedMode or loaded.mode
           setKeyboardRepeat(ui.cfg.keyboardRepeat)
-          start(ui.mode,true)
+          ui.submode=Submodes.clamp(ui.mode,loaded.selectedSubmode or 1)
+          ui.fromPreset=true;ui.state='submode'
         else ui.toast='EMPTY PRESET. SAVE FROM OPTIONS';sound.play('rotate') end
-      else start(ui.mode,false) end
+      else ui.submode=Submodes.clamp(ui.mode,ui.cfg['submode'..ui.mode] or 1)
+        ui.fromPreset=false;ui.state='submode' end
     elseif action=='options' or action=='y' then options()
     end
+  elseif state=='submode' then
+    local count=Submodes.count(ui.mode)
+    if action=='up' or action=='left' then ui.submode=(ui.submode+count-2)%count+1; sound.play('rotate')
+    elseif action=='down' or action=='right' then ui.submode=ui.submode%count+1; sound.play('rotate')
+    elseif action=='a' or action=='cw' or action=='start' then
+      ui.cfg.selectedSubmode=ui.submode
+      ui.cfg['submode'..ui.mode]=ui.submode
+      start(ui.mode,ui.fromPreset)
+    elseif action=='b' or action=='back' then ui.state='mode'
+    elseif action=='options' or action=='y' then options() end
   elseif state=='options' then
     if action=='up' then ui.selected=(ui.selected-2+#ui.pages[ui.page])%#ui.pages[ui.page]+1
     elseif action=='down' then ui.selected=ui.selected%#ui.pages[ui.page]+1
@@ -443,9 +477,11 @@ local function dispatch(action)
       if love.keyboard and love.keyboard.setTextInput then love.keyboard.setTextInput(false) end
     end
   elseif state=='scores' then
-    if action=='left' then ui.scoreMode=(ui.scoreMode+Modes.count-2)%Modes.count+1
-    elseif action=='right' then ui.scoreMode=ui.scoreMode%Modes.count+1
-    elseif action=='up' or action=='down' then ui.scoreVS=not ui.scoreVS
+    if action=='left' then ui.scoreMode=(ui.scoreMode+Modes.count-2)%Modes.count+1;ui.scoreSubmode=1
+    elseif action=='right' then ui.scoreMode=ui.scoreMode%Modes.count+1;ui.scoreSubmode=1
+    elseif action=='up' then ui.scoreSubmode=(ui.scoreSubmode+Submodes.count(ui.scoreMode))%(Submodes.count(ui.scoreMode)+1)
+    elseif action=='down' then ui.scoreSubmode=(ui.scoreSubmode+1)%(Submodes.count(ui.scoreMode)+1)
+    elseif action=='versus' then ui.scoreVS=not ui.scoreVS
     elseif action=='b' or action=='back' or action=='a' or action=='start' then ui.state='options' end
   elseif state=='help' then
     if action=='b' or action=='a' or action=='start' then ui.state='play' end
@@ -460,8 +496,8 @@ local function dispatch(action)
     elseif action=='down' then ui.board:move(0,1)
     elseif action=='left' then ui.board:move(-1,0)
     elseif action=='right' then ui.board:move(1,0)
-    elseif action=='a' or action=='cw' then ui.board:act(true)
-    elseif action=='b' or action=='ccw' then ui.board:act(false)
+    elseif action=='a' or action=='cw' then if ui.board:act(true) then ui.actionCount=(ui.actionCount or 0)+1 end
+    elseif action=='b' or action=='ccw' then if ui.board:act(false) then ui.actionCount=(ui.actionCount or 0)+1 end
     elseif action=='hardDrop' and ui.board.isFalling then ui.board:hardDrop()
     elseif action=='hold' and ui.board.isFalling then ui.board:hold()
     elseif action=='selectHold' and ui.board.isFalling then ui.board:selectHold()
@@ -493,9 +529,9 @@ function love.load()
   ui.cfg=loadSettings()
   setKeyboardRepeat(ui.cfg.keyboardRepeat)
   ui.records=Records.new(Engine.defaults())
-  ui.presetSlot=1;ui.scoreMode=ui.cfg.selectedMode;ui.scoreSlot=0;ui.scoreVS=false
+  ui.presetSlot=1;ui.scoreMode=ui.cfg.selectedMode;ui.scoreSubmode=1;ui.scoreSlot=0;ui.scoreVS=false
   ui.activeSlot=0;ui.toast=''
-  ui.state='mode';ui.mode=ui.cfg.selectedMode;ui.modeTab=1;ui.page=1;ui.selected=1
+  ui.state='mode';ui.mode=ui.cfg.selectedMode;ui.submode=1;ui.modeTab=1;ui.page=1;ui.selected=1
   ui.renderer=Renderer.new()
   ui.touch=love.system.getOS()=='Android' or love.system.getOS()=='iOS'
   ui.boost=false;ui.touchFingers={};ui.keyBoost=false;ui.padBoost=false
@@ -527,10 +563,18 @@ function love.update(dt)
   end
   ui.boost=ui.keyBoost or ui.padBoost or ui.mouseBoost or touchBoost
   if ui.state=='play' then
-    local elapsed=dt*(ui.cfg.gameSpeed or 1)
+    local elapsed=dt*((ui.playCfg or ui.cfg).gameSpeed or 1)
+    ui.runElapsed=(ui.runElapsed or 0)+dt
+    if ui.runSpec and (ui.runSpec.kind=='marathon' or ui.runSpec.kind=='master') and ui.board.isFalling then
+      local lines=ui.board.lines or 0
+      local scale=ui.runSpec.kind=='master' and 7 or 28
+      ui.playCfg.fallingGravity=math.max(.065,(ui.originalFallGravity or .8)/(1+lines/scale))
+    end
     ui.board:update(elapsed,ui.boost)
     if ui.vs then ui.vs:update(elapsed,ui.board) end
-    if ui.board.gameover or ui.vs and ui.vs.ended then
+    local reached=not ui.vs and Submodes.progress(ui.runSpec,ui.board,ui.runElapsed,ui.actionCount or 0) or nil
+    if reached or ui.board.gameover or (ui.vs and ui.vs.ended) then
+      ui.finishResult=reached or (ui.board.gameover and 'TOP OUT' or (ui.vs.winner=='PLAYER' and 'VICTORY' or 'DEFEAT'))
       ui.state='gameover';saveScore()
     end
   end
@@ -610,10 +654,11 @@ function love.keypressed(key)
   end
   if key=='f5' then saveSettings();return end
   if key=='r' and ui.state=='play' then resetBoard();return end
-  if key=='v' and ui.state=='mode' then dispatch('versus');return end
+  if key=='v' and (ui.state=='mode' or ui.state=='scores') then dispatch('versus');return end
   local action=keyAction[key]
   if action then
-    if key=='b' and ui.state=='play' then dispatch('mode')
+    if key=='b' and (ui.state=='pause' or ui.state=='gameover' or ui.state=='submode') then dispatch('back')
+    elseif key=='b' and ui.state=='play' then dispatch('mode')
     elseif key=='escape' and ui.state=='play' then dispatch('y')
     elseif key=='o' and ui.state=='options' then dispatch('b')
     elseif key=='p' and ui.state=='pause' then dispatch('a')
@@ -640,7 +685,8 @@ function love.gamepadpressed(joystick,button)
   end
   local a=gamepadActions[button]
   if a=='boost' then ui.padBoost=true
-  elseif a=='y' and ui.state=='mode' then dispatch('options')
+  elseif a=='y' and (ui.state=='mode' or ui.state=='submode') then dispatch('options')
+  elseif a=='y' and ui.state=='scores' then dispatch('versus')
   elseif a=='y' and ui.state=='play' then dispatch('y')
   elseif a=='b' and ui.state=='options' then dispatch('b')
   elseif a=='b' and ui.state=='mode' then dispatch('options')
@@ -675,6 +721,13 @@ local function screenTouch(x,y)
       end
     elseif ry>=367 and ry<399 then dispatch('versus')
     elseif ry>=399 then dispatch('options') end
+  elseif ui.state=='submode' then
+    if ry>=102 and ry<365 and rx>=66 and rx<=575 then
+      local n=Submodes.count(ui.mode)
+      local first=math.max(1,math.min(ui.submode-2,math.max(1,n-5+1)))
+      local idx=first+math.floor((ry-103)/52)
+      if idx>=first and idx<=n and idx<first+5 then ui.submode=idx;dispatch('start') end
+    elseif ry>=373 then dispatch(rx<320 and 'back' or 'start') end
   elseif ui.state=='options' then
     if ry>96 and ry<368 then
       local rows=ui.pages[ui.page]
@@ -693,7 +746,10 @@ local function screenTouch(x,y)
   elseif ui.state=='rename' then
     if ry>360 then dispatch(rx<320 and 'back' or 'start') end
   elseif ui.state=='scores' then
-    if ry>380 then ui.state='options' else dispatch(rx<320 and 'left' or 'right') end
+    if ry>380 then ui.state='options'
+    elseif ry>325 then dispatch('versus')
+    elseif ry>270 then dispatch(rx<320 and 'up' or 'down')
+    else dispatch(rx<320 and 'left' or 'right') end
   elseif ui.state=='pause' or ui.state=='gameover' then
     if ry<290 then dispatch('start') else dispatch('back') end
   elseif ui.state=='help' then dispatch('b') end
@@ -702,8 +758,9 @@ end
 local dpad={
   {60,252,42,42,'up'},{18,294,42,42,'left'},
   {102,294,42,42,'right'},{60,336,42,42,'down'},
-  {443,268,68,68,'ccw'},{518,268,68,68,'cw'},
-  {443,359,143,57,'boost'}
+  {443,268,68,53,'ccw'},{518,268,68,53,'cw'},
+  {443,326,143,42,'hardDrop'},
+  {443,379,143,44,'boost'}
 }
 local function touchStart(id,x,y)
   if ui.state~='play' then
@@ -716,7 +773,6 @@ local function touchStart(id,x,y)
   if rx>=594 and ry<=40 then dispatch('y');return end
   if ui.board.isFalling and ry>=4 and ry<=39 then
     if rx>=144 and rx<230 then dispatch('hold');return end
-    if rx>=240 and rx<326 then dispatch('hardDrop');return end
     if rx>=336 and rx<424 then dispatch('zone');return end
   end
   if ui.cfg.touchMode==1 then
@@ -732,6 +788,8 @@ local function touchStart(id,x,y)
   else
     if rx>=438 and ry>=367 and ry<424 then
       ui.touchFingers[id]={kind='boost'}
+    elseif rx>=438 and ry>=309 and ry<365 then
+      dispatch('hardDrop')
     elseif rx<320 then
       ui.touchFingers[id]={kind='drag',lastX=rx,lastY=ry,accX=0,accY=0}
     else
@@ -746,9 +804,13 @@ function love.touchmoved(id,x,y)
   if not finger then return end
   local rx,ry=ui.renderer:point(x,y)
   if finger.kind=='menu' then
-    if ui.state=='options' and math.abs(ry-finger.lastY)>=27 then
+    if (ui.state=='options' or ui.state=='submode') and math.abs(ry-finger.lastY)>=27 then
       local steps=math.floor(math.abs(ry-finger.lastY)/27)
-      ui.selected=clamp(ui.selected+(ry<finger.lastY and steps or -steps),1,#ui.pages[ui.page])
+      if ui.state=='options' then
+        ui.selected=clamp(ui.selected+(ry<finger.lastY and steps or -steps),1,#ui.pages[ui.page])
+      else
+        ui.submode=clamp(ui.submode+(ry<finger.lastY and steps or -steps),1,Submodes.count(ui.mode))
+      end
       finger.lastY=ry;finger.swiped=true
     elseif math.abs(ry-finger.startY)>16 then finger.swiped=true end
     return
