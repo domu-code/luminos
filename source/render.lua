@@ -1,3 +1,4 @@
+local VFX=require('vfx')
 local P=require('palettes')
 local Modes=require('modes')
 local F=require('pixel')
@@ -15,6 +16,7 @@ local function txt(s,x,y,size,col,align)
 end
 function R.new()
   local r=setmetatable({frame=0,quality=3,target=3,qualityTimer=0,blurring=false},R)
+  r.vfx=VFX.new()
   r.scene=g.newCanvas(LW,LH)
   r.scene:setFilter('linear','linear')
   r:makeBloom()
@@ -562,6 +564,9 @@ function R:draw(ui)
   local cfg,board=ui.cfg,ui.board;self.frame=self.frame+1
   g.setCanvas(self.scene)
   self:background(board.time,cfg)
+  self.vfx:update(ui,math.min(0.05,math.max(0.001,(board.time or 0)-(self.vfx.lastBoardTime or ((board.time or 0)-1/60)))))
+  self.vfx.lastBoardTime=board.time or 0
+  self.vfx:background(ui)
   if ui.state=='play' or ui.state=='pause' or ui.state=='gameover' or ui.state=='help' then
     if ui.vs then
       local tile=12
@@ -576,6 +581,8 @@ function R:draw(ui)
     end
   end
   if ui.state~='play' then self:menu(ui.state,cfg,ui) end
+  if ui.state=='play' then self.vfx:foreground(ui) end
+  if ui.state=='play' then self.vfx:postScene(self.scene) end
   g.setCanvas()
   if cfg.bloom and cfg.glowPower>0 and cfg.bloomIntensity>0 and self.threshold and self.blur then
     local every=self.quality==3 and 2 or self.quality==2 and 3 or 5
@@ -594,6 +601,7 @@ function R:draw(ui)
   self.scale,self.ox,self.oy=scale,ox,oy
   g.clear(.008,.012,.028,1)
   g.setColor(1,1,1,1);g.draw(self.scene,ox,oy,0,scale,scale)
+  self.vfx:postDisplay(self.scene,ox,oy,scale)
   if cfg.bloom and cfg.glowPower>0 and cfg.bloomIntensity>0 and self.threshold and self.blur then
     g.setBlendMode('add','alphamultiply')
     g.setColor(.75,.93,1,min(1.9,(self.quality==1 and .5 or .8)*cfg.glowPower*(cfg.bloomIntensity or 1)))
