@@ -66,6 +66,47 @@ function R:adaptive(dt,enabled)
   if fps<42 and self.quality>1 then self.quality=self.quality-1;self:resizeBlur()
   elseif fps>57 and self.quality<3 then self.quality=self.quality+1;self:resizeBlur() end
 end
+
+-- Tile motifs are cosmetic: board data, matches and special IDs remain unchanged.
+local function drawTileMotif(style,px,py,S,c)
+  if style<=1 or S<8 then return end
+  local x,y=math.floor(px),math.floor(py)
+  local s=math.max(1,math.floor(S/6))
+  g.setColor(1,1,1,.27)
+  if style==2 then
+    g.rectangle('line',x+3,y+3,S-6,S-6)
+    g.points(x+S/2,y+S/2)
+  elseif style==3 then
+    for dx=4,S-3,4 do for dy=4,S-3,4 do
+      if (math.floor(dx/4)+math.floor(dy/4)+c)%3~=0 then g.rectangle('fill',x+dx,y+dy,1,1) end
+    end end
+  elseif style==4 then
+    for dx=3,S-4,4 do for dy=3,S-4,4 do
+      if (math.floor(dx/4)+math.floor(dy/4)+c)%2==0 then g.rectangle('fill',x+dx,y+dy,3,3) end
+    end end
+  elseif style==5 then
+    g.line(x+3,y+S/2,x+S/2,y+S/2,x+S/2,y+3)
+    g.rectangle('fill',x+S/2-1,y+S/2-1,3,3)
+    g.rectangle('fill',x+S-5,y+S-5,2,2)
+  elseif style==6 then
+    for d=4,S-4,5 do g.line(x+d,y+3,x+3,y+d) end
+  elseif style==7 then
+    g.polygon('line',x+S/2,y+2,x+S-3,y+S/2,x+S/2,y+S-3,x+3,y+S/2)
+    g.line(x+3,y+S/2,x+S-3,y+S/2)
+  elseif style==8 then
+    local k=(c%4)+1
+    g.rectangle('fill',x+S/2-s,y+3,s*2,s)
+    g.rectangle('fill',x+S/2-s,y+S-4,s*2,s)
+    g.rectangle('fill',x+3,y+S/2-s,s,s*2)
+    if k%2==0 then g.rectangle('fill',x+S-4-s,y+S/2-s,s,s*2) end
+    if k>2 then g.rectangle('fill',x+S/2-s,y+S/2-s,s*2,s*2) end
+  elseif style==9 then
+    g.rectangle('line',x+2,y+2,S-4,S-4)
+    g.rectangle('fill',x+3,y+3,S/3,S/3)
+    g.rectangle('fill',x+S*2/3,y+S*2/3,S/3-3,S/3-3)
+  end
+end
+
 local function cellRGB(cfg,c,t)
   local palette=cfg.palette
   if cfg.paletteCycleSecs and cfg.paletteCycleSecs>0 then
@@ -172,6 +213,7 @@ function R:board(board,cfg,t,view)
           g.setColor(min(1,rr*.55+charge*.15),min(1,gg*.55+charge*.15),min(1,bb*.55+charge*.15),charged and .75 or .46)
           g.rectangle('fill',px+3,py+3,S-6,S-6)
         end
+        drawTileMotif(cfg.tileset or 1,px,py,S,math.abs(c))
         if board.isFalling and y>h-(board.zoneRows or 0) then
           g.setColor(.66,.97,1,.64+.22*sin(t*9))
           g.rectangle('line',px+.5,py+.5,S-1,S-1)
@@ -447,23 +489,23 @@ function R:menu(state,cfg,ui)
       end
     else
       for k=1,Modes.count do
-        local col=k<=6 and 0 or 1
-        local rr=col==0 and k-1 or k-7
+        local col=k<=7 and 0 or 1
+        local rr=col==0 and k-1 or k-8
         local x=col==0 and 54 or 323
-        local yy=93+rr*43
+        local yy=93+rr*38
         local selected=ui.mode==k
-        rect(x,yy,262,39,selected and {.11,.29,.39,.92} or {.05,.12,.18,.9})
-        rect(x,yy,262,39,{selected and .69 or .23,selected and .99 or .55,1,selected and .85 or .28},true)
+        rect(x,yy,262,35,selected and {.11,.29,.39,.92} or {.05,.12,.18,.9})
+        rect(x,yy,262,35,{selected and .69 or .23,selected and .99 or .55,1,selected and .85 or .28},true)
         txt(k..' '..Modes.names[k],x+7,yy+4,1,{selected and 1 or .65,selected and 1 or .84,1})
         local note=Modes.notes[k]
         if k==Modes.count then note='BASE: '..Modes.name(cfg.customBase or 5) end
-        txt(note,x+7,yy+22,1,{.59,.78,.87})
+        txt(note,x+7,yy+19,1,{.59,.78,.87})
       end
     end
     rect(57,365,526,29,{.05,.14,.22,.92})
     rect(57,365,526,29,{.31,.85,1,.54},true)
     txt('VS CPU '..(cfg.vsCPU and 'ON' or 'OFF')..'   [V TO TOGGLE]',LW/2,374,1,{cfg.vsCPU and 1 or .63,.97,1},'center')
-    txt('A PLAY  TAB FACTORY / PRESETS   Y OPTIONS',LW/2,400,1,{.71,.81,.85},'center')
+    txt('13 MODES   A PLAY   TAB PRESETS   Y OPTIONS',LW/2,400,1,{.71,.81,.85},'center')
   elseif state=='options' then
     local page=ui.page
     local title=ui.pageNames[page]

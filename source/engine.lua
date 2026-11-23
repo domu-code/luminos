@@ -17,7 +17,10 @@ local default={mode=1,cols=10,rows=20,colours=5,startRows=6,minGroup=3,
   bombs=true,bomb3=.012,bomb5=.004,bomb7=.0015,beamH=.009,beamV=.009,
   painter=.003,shifter=.002,freezeRate=.01,freezeSecs=5.0,
   palette=1,hueDrift=true,bloom=true,adaptive=true,particles=true,
-  sound=true,volume=.55,gameSpeed=1.0,bonusText=true,
+  sound=true,volume=.42,gameSpeed=1.0,bonusText=true,
+  tileset=1,musicEnabled=true,musicScale=1,musicRoot=0,musicDrone=.23,
+  musicAttack=1.2,musicRelease=2.6,musicFilter=.32,musicModDepth=.13,
+  sfxAttack=.025,sfxRelease=.36,sfxTone=.22,
   touchMode=2,touchSensitivity=1.0,glowPower=1.15,particlePower=1.0,juicePower=1.0,
   boostSpeed=4.7,boostReward=1.0,vsCPU=false,cpuSkill=.65,cpuSpeed=.85,
   garbagePower=1.0,garbageDelay=1.4,garbageBreak=true,comboVolume=1.0,
@@ -547,7 +550,7 @@ function Engine:update(dt,boost)
     if boost then self.boostCharge=min(4.5,self.boostCharge+dt*.90)
     else self.boostCharge=max(0,self.boostCharge-dt*.24) end
     self.riskMultiplier=1+floor(self.boostCharge*(self.cfg.boostReward or 1)*2+.01)/2
-    local riseDuration=self.cfg[modeName..'RiseSecs'] or self.cfg.riseSecs or 15
+    local riseDuration=(self.cfg[modeName..'RiseSecs'] or 15)*(self.cfg.riseSecs or 15)/15
     local interval=max(.7,(riseDuration-self.rowsRaised*.028)*.5)
     self.rise=self.rise+dt/interval*(boost and (self.cfg.boostSpeed or 4.7) or 1)
     while self.rise>=1 and not self.gameover do self.rise=self.rise-1;self:raise() end
@@ -573,7 +576,7 @@ function Engine:update(dt,boost)
       if self.clearHold==0 then self:applySweep(self.sweep-.1,self.sweep+.1,true) end
     else
       local prev=self.sweep
-      local sweepDuration=self.cfg[modeName..'SweepSecs'] or self.cfg.sweepSecs
+      local sweepDuration=(self.cfg[modeName..'SweepSecs'] or 7.5)*(self.cfg.sweepSecs or 7.5)/7.5
       self.sweep=self.sweep+dt*self.h/max(1,sweepDuration)
       if self.sweep>=self.h then
         self:applySweep(prev,self.h);self.sweep=self.sweep-self.h;self.sweeps=self.sweeps+1

@@ -47,6 +47,7 @@ local function kindFor(cfg)
   if cfg.mode==5 or cfg.mode==6 then return 1 end
   if cfg.mode==10 then return cfg.slideShape or 2 end
   if cfg.mode==11 then return cfg.labPieceShape or 2 end
+  if cfg.mode==12 then return 2 end
   return 2
 end
 local function ruleFor(cfg)
@@ -56,6 +57,7 @@ local function ruleFor(cfg)
   if cfg.mode==8 then return 4 end -- crash gem
   if cfg.mode==9 then return 5 end -- animal-food
   if cfg.mode==10 then return 6 end -- sliding-cluster
+  if cfg.mode==12 then return 3 end -- Zone Garden colour pairs
   return cfg.labClearRule or 3
 end
 function F:rule() return ruleFor(self.cfg) end
