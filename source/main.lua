@@ -1,4 +1,15 @@
 local Engine=require('engine')
+local originalDefaults=Engine.defaults
+Engine.defaults=function(...)
+  local c=originalDefaults(...)
+  local v={vfxEnabled=true,vfxPreset=1,vfxPalette=0,vfxBackground=0,
+    vfxIntensity=100,vfxDensity=100,vfxReactivity=100,vfxFeedback=100,
+    vfxMesh=true,vfxParticles=true,vfxWaves=true,vfxShards=true,
+    vfxScanlines=false,vfxQuality=2}
+  for k,value in pairs(v) do if c[k]==nil then c[k]=value end end
+  return c
+end
+
 local Falling=require('falling')
 local Modes=require('modes')
 local Renderer=require('render')
@@ -227,6 +238,24 @@ ui.pages={
    row('LOAD USER RULESET','loadPreset','command'),
    row('RENAME USER RULESET','renamePreset','command')}
 }
+ui.pageNames[#ui.pageNames+1]='VFX LAB'
+ui.pages[#ui.pages+1]={
+ row('REACTIVE VFX','vfxEnabled','bool'),
+ row('COMBO PRESET','vfxPreset','int',1,12,1),
+ row('COLOUR FAMILY','vfxPalette','int',0,6,1),
+ row('BACKGROUND','vfxBackground','int',0,4,1),
+ row('MASTER INTENSITY','vfxIntensity','int',0,200,10),
+ row('GEOMETRY DENSITY','vfxDensity','int',10,150,10),
+ row('GAME REACTIVITY','vfxReactivity','int',0,200,10),
+ row('FEEDBACK','vfxFeedback','int',0,150,10),
+ row('VFX MESH','vfxMesh','bool'),
+ row('VFX PARTICLES','vfxParticles','bool'),
+ row('CLEAR WAVES','vfxWaves','bool'),
+ row('CRYSTAL SHARDS','vfxShards','bool'),
+ row('SCANLINES','vfxScanlines','bool'),
+ row('RENDER QUALITY','vfxQuality','int',1,3,1)
+}
+
 function ui.optionText(r,cfg)
   if r.kind=='locked' then
     return r.key=='activeSlot' and (ui.activeSlot==0 and 'CUSTOM' or 'SLOT '..ui.activeSlot) or r.key=='boostrisk' and 'YES' or r.key=='risk' and 'SCORE X1-PLUS' or r.key=='garbageCluster' and 'ALL CONNECTED' or r.key=='selfCurse' and 'MANDATORY' or r.key=='effectColour' and 'YES / MATCHABLE' or r.key=='padSize' and 'EQUAL 42X42' or r.key=='relative' and 'LEFT DRAG' or r.key=='boost' and 'HOLD TO CHARGE' or r.key=='gamepad' and 'ALWAYS AVAILABLE' or r.key=='cursor' and 'MICROCELL' or r.key=='waves' and 'ONE ROW AT A TIME' or r.key=='topout' and 'ONE ROW EXIT' or r.key=='save' and 'AUTO' or 'DISABLED'
