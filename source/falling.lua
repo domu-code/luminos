@@ -614,13 +614,13 @@ function F:update(dt,boost)
   end
   if self:rule()==2 and not self.zoneActive and self.zoneRows>0 then
     local previous=self.sweep
-    self.sweep=self.sweep+dt*self.h/max(1,self.cfg.fallingSweepSecs or 8)
+    self.sweep=self.sweep+dt*self.h/max(1,((self.cfg.fallingSweepSecs or 8)*(self.cfg.sweepSecs or 7.5)/7.5))
     if self.sweep>=self.h-self.zoneRows and previous<self.h-self.zoneRows then
       self:releaseSealed('SWEEP')
     end
     if self.sweep>=self.h then self.sweep=self.sweep-self.h;self.sweeps=self.sweeps+1 end
   elseif self:rule()==2 and not self.zoneActive then
-    self.sweep=(self.sweep+dt*self.h/max(1,self.cfg.fallingSweepSecs or 8))%self.h
+    self.sweep=(self.sweep+dt*self.h/max(1,((self.cfg.fallingSweepSecs or 8)*(self.cfg.sweepSecs or 7.5)/7.5)))%self.h
   end
   if self.clearTimer>0 then
     self.clearTimer=self.clearTimer-dt
