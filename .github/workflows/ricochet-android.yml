@@ -1,0 +1,41 @@
+name: Build Ricochet Android APK
+on:
+  push:
+    branches: [ricochet-v0-2-android]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and package Lua
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y lua5.4
+          luac -p ricochet/main.lua
+          luac -p ricochet/conf.lua
+          cd ricochet
+          zip -9 ../ricochet.love main.lua conf.lua
+          cd ..
+          unzip -t ricochet.love
+      - uses: love-actions/love-actions-android@v2
+        with:
+          app-name: "Ricochet"
+          bundle-id: "com.ricochet.pixelarena"
+          love-ref: "11.5a"
+          love-package: "./ricochet.love"
+          product-name: "Ricochet"
+          version-string: "0.2.0"
+          version-code: 2
+          output-folder: "./dist"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ricochet-v0.2-Android-APK
+          path: dist/**/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ricochet-v0.2-LOVE
+          path: ricochet.love
