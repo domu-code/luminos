@@ -24,6 +24,9 @@ jobs:
         with:
           app-name: "Ricochet"
           bundle-id: "com.ricochet.pixelarena"
+          resource-path: "./ricochet-res"
+          icon-specifier: "@drawable/ricochet_icon"
+          needs-microphone: "false"
           love-ref: "11.5a"
           love-package: "./ricochet.love"
           product-name: "Ricochet"
